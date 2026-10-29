@@ -3,7 +3,7 @@
 The terminal never names itself. The left panel shows the location when one
 of your inventories is selected ("BAIJINI POINT"); otherwise the set of
 commodities on sale and their prices single out the terminal: at Port Tressler
-seven captured buy rows matched exactly one UEX terminal.
+7 captured buy rows matched exactly one UEX terminal.
 """
 from __future__ import annotations
 

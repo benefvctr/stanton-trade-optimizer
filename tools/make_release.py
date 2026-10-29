@@ -43,24 +43,32 @@ def main() -> int:
     out.parent.mkdir(exist_ok=True)
     subprocess.run(["git", "archive", "--format=zip", "--prefix=Stanton Trade Optimizer/", "-o", str(out),
                     "HEAD", "--", *SHIP], cwd=ROOT, check=True)
+    problem = check(out)
+    if problem:
+        out.unlink()     # after the zip is closed: Windows won't delete an open file
+        print(f"Refusing: {problem}")
+        return 1
+    with zipfile.ZipFile(out) as z:
+        names = z.namelist()
+    print(f"Wrote {out} ({out.stat().st_size // 1024} KB, {len(names)} entries)")
+    return 0
+
+
+def check(out: Path) -> str | None:
     guards = guard_strings()
     with zipfile.ZipFile(out) as z:
         names = z.namelist()
         if any(n.endswith("/config.toml") for n in names):
-            out.unlink()
-            print("Refusing: the zip would contain a personal config.toml")
-            return 1
+            return "the zip would contain a personal config.toml"
         for name in names:
             data = z.read(name)
             hits = [g.decode() for g in guards if g.lower() in data.lower()]
             if hits and not name.endswith(".png"):
-                print(f"Refusing: {name} contains {hits}")
-                out.unlink()
-                return 1
+                return f"{name} contains {hits}"
         defaults = z.read("Stanton Trade Optimizer/config.default.toml").decode()
-        assert "region = [0, 0, 0, 0]" in defaults and "balance = 0" in defaults, "defaults aren't clean"
-    print(f"Wrote {out} ({out.stat().st_size // 1024} KB, {len(names)} entries)")
-    return 0
+        if "region = [0, 0, 0, 0]" not in defaults or "balance = 0" not in defaults:
+            return "config.default.toml isn't clean"
+    return None
 
 
 if __name__ == "__main__":
