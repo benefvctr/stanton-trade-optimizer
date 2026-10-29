@@ -56,7 +56,8 @@ COLUMNS = [("#", 2), ("COMMODITY", 13), ("BUY AT", 15), ("SELL AT", 15), ("QTY",
            ("PROFIT", 7), ("MRG", 4), ("ROI", 4), ("GM", 4), ("ETA", 4), ("P/HR", 6), ("AGE", 4),
            ("CONF", 4), ("FLAGS", 9)]
 PLACE_COLUMNS = ("BUY AT", "SELL AT")
-TAG_WIDTH = 5   # "STAN " in front of each place when the table mixes systems
+TAG_WIDTH = 4   # room for "STAN " in front of each place when the table mixes systems; 4, not 5,
+                # so the table still fits 140 columns (the name loses one character)
 MAX_LOOKUPS_PER_RUN = 60
 WALLET_HISTORY_S = 12 * 3600   # readings kept in view for the RUN figure and the history (h)
 

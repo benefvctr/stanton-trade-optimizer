@@ -169,7 +169,9 @@ async def test_places_carry_a_system_tag_only_when_systems_mix(app_parts):
             assert buy == tags[r.buy_terminal.system] + r.buy_terminal.label
             assert sell == tags[r.sell_terminal.system] + r.sell_terminal.label
         widths = {c.label.plain: c.width for c in app.query_one("#routes", DataTable).columns.values()}
-        assert widths["BUY AT"] == widths["SELL AT"] == 20
+        assert widths["BUY AT"] == widths["SELL AT"] == 19
+        table = app.query_one("#routes", DataTable)
+        assert table.virtual_size.width <= table.scrollable_content_region.width     # no sideways scrolling
         assert buy_title(app) == f"▌BUY ▸ {buy_cell(app)}"
         await pilot.press("y")                                          # back to Stanton alone
         await settle(app, pilot)
