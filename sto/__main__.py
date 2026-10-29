@@ -8,7 +8,7 @@ import time
 from .config import CACHE_DIR, Config, ShipProfile, read_token, vehicle_max_box
 from .data import DataService
 from .store import Store
-from .uex import UexClient
+from .uex import UexClient, urllib_transport
 
 
 def build_service(cfg: Config) -> tuple[DataService, Store]:
@@ -17,7 +17,10 @@ def build_service(cfg: Config) -> tuple[DataService, Store]:
     svc = DataService(client, store,
                       price_refresh_s=float(cfg.get("data", "price_refresh_s", 300)),
                       fuel_refresh_s=float(cfg.get("data", "fuel_refresh_s", 3600)),
-                      static_refresh_h=float(cfg.get("data", "static_refresh_h", 24)))
+                      static_refresh_h=float(cfg.get("data", "static_refresh_h", 24)),
+                      sctrade_transport=urllib_transport if bool(cfg.get("sctrade", "enabled", True)) else None,
+                      sctrade_refresh_s=float(cfg.get("sctrade", "refresh_min", 60)) * 60,
+                      sctrade_max_age_h=float(cfg.get("sctrade", "max_age_h", 168)))
     return svc, store
 
 
@@ -39,14 +42,18 @@ def cmd_refresh(cfg: Config) -> int:
     wallet = int(saved.get("value") or cfg.get("wallet", "balance", 0))
     names = cfg.get("data", "systems", ["Stanton"])
     s = Settings(wallet=wallet, reserve=float(cfg.get("wallet", "reserve", 150_000)), ship=cfg.active_ship(),
-                 now=time.time(), system_ids=frozenset(filter(None, (ds.system_id(n) for n in names))))
+                 now=time.time(), system_ids=frozenset(filter(None, (ds.system_id(n) for n in names))),
+                 cross_system=bool(cfg.get("optimizer", "cross_system", True)),
+                 jump_min=float(cfg.get("optimizer", "jump_min", 5)))
     routes = find_routes(ds, s)
     print(f"\n{len(ds.prices)} prices, {len(ds.terminals)} trade terminals. "
           f"Top routes for {wallet:,} aUEC, {s.ship.name}, {', '.join(names)}:")
     if wallet <= s.reserve:
         print("  (wallet is at or below the reserve: set [wallet] balance in config.toml or press w in the app)")
     for i, r in enumerate(routes, 1):
-        print(f"{i:>2} {r.commodity.name[:16]:16} {r.buy_terminal.label[:18]:18} > {r.sell_terminal.label[:18]:18} "
+        buy, sell = (f"{t.system[:4].upper()} {t.label}" if len(names) > 1 else t.label
+                     for t in (r.buy_terminal, r.sell_terminal))
+        print(f"{i:>2} {r.commodity.name[:16]:16} {buy[:22]:22} > {sell[:22]:22} "
               f"{r.qty:>3} SCU  profit {compact(r.profit):>6}  conf {r.confidence:.2f}  age {age_text(r.age_h):>4}  "
               f"{' '.join(r.flags)}")
     return 0 if not errors else 2

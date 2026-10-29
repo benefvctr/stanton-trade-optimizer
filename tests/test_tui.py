@@ -419,3 +419,51 @@ async def test_an_unidentified_terminal_saves_nothing(app_parts):
         await settle(app, pilot)
         assert app.store.captures() == []
         assert "couldn't tell" in app.terminal_status
+
+
+async def test_all_systems_show_crossing_runs_until_jumps_are_switched_off(app_parts):
+    app = make_app(app_parts)
+    async with app.run_test(size=SIZE) as pilot:
+        await settle(app, pilot)
+        assert app.cross and not any(r.via for r in app.routes)       # Stanton alone: nothing to cross
+        await pilot.press("y", "y", "y")
+        await settle(app, pilot)
+        crossing = [i for i, r in enumerate(app.routes) if r.via]
+        assert crossing and "JUMPS" in app.query_one("#routes", DataTable).border_title
+        i = crossing[0]
+        r = app.routes[i]
+        buy, sell = place_cells(app)[i]
+        assert buy.split()[0] != sell.split()[0]                      # two different system tags
+        app.show_detail(i)
+        run = str(app.query_one("#run", Static).render())
+        assert f"jump     {r.buy_terminal.system} → {r.sell_terminal.system} via {r.via}" in run
+        await pilot.press("x")
+        await settle(app, pilot)
+        assert not app.cross and not any(r.via for r in app.routes)
+        assert "JUMPS" not in app.query_one("#routes", DataTable).border_title
+        assert "JUMPS OFF" in status(app)
+
+
+async def test_sc_trade_tools_reports_show_in_the_header_and_the_detail(app_parts):
+    from sto.optimizer import find_routes
+    from sto.sctrade import _plain
+    from test_sctrade import pager, report
+
+    cfg, svc, store, clock, _ = app_parts
+    svc.refresh()
+    ds = svc.dataset()
+    probe = make_app(app_parts)
+    probe.ds = ds
+    top = find_routes(ds, probe.settings())[0]                       # aim a report at the best run's buy price
+    t, c = top.buy_terminal, top.cargo[0]
+    where = f"{t.system.lower()} > {_plain(t.orbit, t.system)} > {_plain(t.place, t.system)}"
+    transport, _ = pager([[report(where, c.commodity.name.lower(), "SELLS", c.buy.price_buy - 1, clock() - 60)]])
+    svc.sctrade_transport = transport
+    app = make_app(app_parts)
+    async with app.run_test(size=SIZE) as pilot:
+        await settle(app, pilot)
+        assert "SC TRADE" in status(app) and "1 newer than UEX" in status(app)
+        i = next(i for i, r in enumerate(app.routes) if "stt" in r.flags)
+        assert "◆" in str(app.query_one("#routes", DataTable).get_row_at(i)[-1])
+        app.show_detail(i)
+        assert "◆ SC Trade Tools" in str(app.query_one("#buy", Static).render())

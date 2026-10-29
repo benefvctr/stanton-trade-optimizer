@@ -1,8 +1,8 @@
 """Keeps the SQLite cache current from UEX and turns it into a Dataset.
 
-Prices refresh every few minutes, fuel hourly, everything static once a day.
-A failed fetch never throws out cached data: the app keeps working from the
-cache and reports "stale since" the last good fetch.
+Prices refresh every few minutes, fuel and SC Trade Tools reports hourly,
+everything static once a day. A failed fetch never throws out cached data: the
+app keeps working from the cache and reports "stale since" the last good fetch.
 """
 from __future__ import annotations
 
@@ -11,8 +11,9 @@ from dataclasses import dataclass
 from typing import Callable
 
 from .models import Dataset, build_dataset, pair_key
+from .sctrade import SctradeError, fetch_listings
 from .store import Store
-from .uex import UexClient, UexError
+from .uex import Transport, UexClient, UexError
 
 STATIC_ENDPOINTS = ("star_systems", "terminals", "commodities", "vehicles", "space_stations", "outposts",
                     "cities", "poi", "commodities_status")
@@ -20,6 +21,8 @@ PRICES = "commodities_prices_all"
 FUEL = "fuel_prices_all"
 DEFAULT_LIVE_SYSTEMS = (68, 64, 55)   # Stanton, Pyro, Nyx, until star_systems is cached
 RETRY_AFTER_FAILURE_S = 60
+SCTRADE = "sctrade"                    # endpoint-table key for SC Trade Tools fetch outcomes
+SCTRADE_RETRY_S = 900                  # someone else's free service: back off 15 min after a failure
 
 
 def orbit_key(system_id: int) -> str:
@@ -37,7 +40,9 @@ class Freshness:
 class DataService:
     def __init__(self, client: UexClient, store: Store, price_refresh_s: float = 300,
                  fuel_refresh_s: float = 3600, static_refresh_h: float = 24,
-                 clock: Callable[[], float] = time.time, sleep: Callable[[float], None] = time.sleep):
+                 clock: Callable[[], float] = time.time, sleep: Callable[[float], None] = time.sleep,
+                 sctrade_transport: Transport | None = None, sctrade_refresh_s: float = 3600,
+                 sctrade_max_age_h: float = 168):
         self.client = client
         self.store = store
         self.price_refresh_s = price_refresh_s
@@ -45,13 +50,16 @@ class DataService:
         self.static_refresh_s = static_refresh_h * 3600
         self.clock = clock
         self.sleep = sleep
+        self.sctrade_transport = sctrade_transport     # None: SC Trade Tools reports are off
+        self.sctrade_refresh_s = sctrade_refresh_s
+        self.sctrade_max_age_s = sctrade_max_age_h * 3600
 
     # fetching
 
-    def _due(self, key: str, max_age: float) -> bool:
+    def _due(self, key: str, max_age: float, retry_s: float = RETRY_AFTER_FAILURE_S) -> bool:
         meta = self.store.meta(key)
         now = self.clock()
-        if meta["last_error"] and meta["last_attempt"] and now - meta["last_attempt"] < RETRY_AFTER_FAILURE_S:
+        if meta["last_error"] and meta["last_attempt"] and now - meta["last_attempt"] < retry_s:
             return False
         return meta["fetched_at"] is None or now - meta["fetched_at"] >= max_age
 
@@ -95,7 +103,29 @@ class DataService:
             run(PRICES, PRICES)
         if force or force_prices or self._due(FUEL, self.fuel_refresh_s):
             run(FUEL, FUEL)
+        if self.sctrade_transport and (force or self._due(SCTRADE, self.sctrade_refresh_s, SCTRADE_RETRY_S)):
+            if self.refresh_sctrade():
+                self.fetched.append(SCTRADE)
         return errors
+
+    def refresh_sctrade(self) -> int:
+        """Pull new SC Trade Tools reports. Its failures stay out of the UEX
+        error list: the header shows them, and UEX prices carry on alone."""
+        now = self.clock()
+        oldest = now - self.sctrade_max_age_s
+        try:
+            rows = fetch_listings(self.store.newest_listing(), oldest, transport=self.sctrade_transport,
+                                  sleep=self.sleep)
+        except SctradeError as e:
+            self.store.mark_failure(SCTRADE, str(e), now)
+            return 0
+        self.store.save_listings(rows, older_than=oldest)
+        self.store.save(SCTRADE, {"new": len(rows)}, now)
+        return len(rows)
+
+    def sctrade_status(self) -> dict | None:
+        """None when off; else the last fetch outcome (fetched_at, last_attempt, last_error)."""
+        return self.store.meta(SCTRADE) if self.sctrade_transport else None
 
     def lookup_distances(self, pairs: list[tuple[int, int]], limit: int = 20, pace_s: float = 3.0) -> int:
         """Look up terminal-to-terminal distances one pair per call (UEX has no bulk
@@ -137,7 +167,8 @@ class DataService:
         if raw is None:
             return None
         terminal_gm = self.store.terminal_distances(newer_than=self.clock() - self.static_refresh_s)
-        return build_dataset(raw, terminal_gm, pad_overrides, self.store.captures())
+        listings = self.store.listings(newer_than=self.clock() - self.sctrade_max_age_s)             if self.sctrade_transport else None
+        return build_dataset(raw, terminal_gm, pad_overrides, self.store.captures(), listings)
 
     def freshness(self) -> Freshness:
         meta = self.store.meta(PRICES)

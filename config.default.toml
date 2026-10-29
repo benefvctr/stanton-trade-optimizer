@@ -19,7 +19,8 @@ fuel_refresh_s = 3600
 # Hours between refreshes of terminals, locations, distances and vehicles.
 static_refresh_h = 24
 # Systems whose routes are considered (y cycles through them in the app).
-# Any of "Stanton", "Pyro", "Nyx". Both ends of a route stay in one system.
+# Any of "Stanton", "Pyro", "Nyx". With more than one, runs can also cross a
+# jump point between them (see cross_system below).
 systems = ["Stanton"]
 # Client-side cap on UEX requests per minute. UEX allows 120.
 max_requests_per_min = 60
@@ -47,6 +48,12 @@ same_orbit_gm = 1.0
 # Show routes whose landing pad size is unknown (flagged "pad ?").
 # UEX only knows pad sizes for a small share of terminals.
 show_unknown_pad = true
+# With more than one system on, also rank runs that jump from one system to
+# another through a gateway (x toggles it in the app).
+cross_system = true
+# Minutes a jump adds to a run: the trip through the tunnel plus the extra
+# quantum spool. Time one jump and put your number here.
+jump_min = 5
 
 [ship]
 # Name of the active profile below (s switches it in the app).
@@ -98,6 +105,16 @@ interval_s = 3
 repeat_s = 60
 # The game window's title.
 window_title = "Star Citizen"
+
+[sctrade]
+# Add the free community price reports from SC Trade Tools (sc-trade.tools).
+# A report is used only when it is newer than UEX's price and close to it
+# (the feed is unfiltered). One small request an hour, no account needed.
+enabled = true
+# Minutes between checks for new reports.
+refresh_min = 60
+# Reports older than this many hours are dropped.
+max_age_h = 168
 
 [pad_overrides]
 # Terminals whose pads you know, by nickname or code, e.g.

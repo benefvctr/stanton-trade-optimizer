@@ -33,11 +33,30 @@ def system_median_gm(ds: Dataset, system_id: int) -> float:
     return statistics.median(values) if values else 30.0
 
 
+def cross_median_gm(ds: Dataset, a_system: int, b_system: int) -> float:
+    """Median orbit-to-orbit distance between two systems; UEX's per-system
+    distance lists include the pairs that cross a jump point."""
+    a_orbits = {t.orbit_id for t in ds.terminals.values() if t.system_id == a_system}
+    b_orbits = {t.orbit_id for t in ds.terminals.values() if t.system_id == b_system}
+    values = [gm for (x, y), gm in ds.orbit_gm.items() if gm > 0 and (
+        (x in a_orbits and y in b_orbits) or (x in b_orbits and y in a_orbits))]
+    return statistics.median(values) if values else 100.0
+
+
 def leg_distance(ds: Dataset, a: Terminal, b: Terminal, same_orbit_gm: float,
-                 median_cache: dict[int, float] | None = None) -> Leg:
+                 median_cache: dict | None = None) -> Leg:
     exact = ds.terminal_gm.get(pair_key(a.id, b.id))
     if exact is not None:
         return Leg(exact, EXACT)
+    if a.system_id != b.system_id:
+        gm = ds.orbit_gm.get(pair_key(a.orbit_id, b.orbit_id))
+        if gm is not None and gm > 0:
+            return Leg(gm, ORBIT)
+        key = pair_key(a.system_id, b.system_id)
+        cache = median_cache if median_cache is not None else {}
+        if key not in cache:
+            cache[key] = cross_median_gm(ds, *key)
+        return Leg(cache[key], ESTIMATE)
     if a.orbit_id == b.orbit_id:
         return Leg(same_orbit_gm, ESTIMATE)
     gm = ds.orbit_gm.get(pair_key(a.orbit_id, b.orbit_id))

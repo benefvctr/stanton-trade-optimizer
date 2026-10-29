@@ -71,6 +71,7 @@ class TradeApp(App):
         Binding("o", "sort", "Sort"),
         Binding("y", "systems", "Systems"),
         Binding("m", "mixed", "Mixed"),
+        Binding("x", "jumps", "Jumps"),
         Binding("c", "calibrate", "Calibrate"),
         Binding("question_mark", "help", "Help", key_display="?"),
         Binding("q", "quit", "Quit"),
@@ -107,6 +108,7 @@ class TradeApp(App):
         if self.sort not in SORT_MODES:
             self.sort = "score"
         self.mixed = bool(config.get("optimizer", "mixed_cargo", False))
+        self.cross = bool(config.get("optimizer", "cross_system", True))
         configured = [s for s in config.get("data", "systems", ["Stanton"])]
         self.scopes: list[list[str]] = [["Stanton"], ["Pyro"], ["Nyx"], ["Stanton", "Pyro", "Nyx"]]
         if configured not in self.scopes:
@@ -236,6 +238,7 @@ class TradeApp(App):
             unknown_demand_factor=float(g("optimizer", "unknown_demand_factor", 0.8)),
             same_orbit_gm=float(g("optimizer", "same_orbit_gm", 1.0)),
             show_unknown_pad=bool(g("optimizer", "show_unknown_pad", True)),
+            cross_system=self.cross, jump_min=float(g("optimizer", "jump_min", 5)),
         )
 
     def recompute(self) -> None:
@@ -317,7 +320,7 @@ class TradeApp(App):
                 fmt.compact(r.profit_per_hour), fmt.aged(r.age_h), fmt.conf_bar(r.confidence),
                 fmt.flag_text(r.flags), key=str(i),
             )
-        scope = " + ".join(self.scopes[self.scope_idx]).upper()
+        scope = " + ".join(self.scopes[self.scope_idx]).upper() + (" ▸ JUMPS" if tagged and self.cross else "")
         table.border_title = f"▌ROUTES ▸ {scope} ▸ {SORT_LABELS[self.sort]}"
         table.border_subtitle = f"{len(self.routes)} shown · ? for help"
         if self.routes:
@@ -359,7 +362,7 @@ class TradeApp(App):
             price = p.price_buy if side == "buy" else p.price_sell
             age_h = (now - p.updated) / 3600
             color = fmt.age_color(age_h)
-            mine = "  [b #7ddc6a]★ yours[/]" if p.source == "you" else ""
+            mine = {"you": "  [b #7ddc6a]★ yours[/]", "stt": f"  [b {fmt.STT}]◆ SC Trade Tools[/]"}.get(p.source, "")
             lines.append(f"[b]{c.commodity.name}[/]  {price:,.0f}/SCU  [{color}]{fmt.clock(p.updated)} · "
                          f"{fmt.age_text(age_h)} ago[/]{mine}")
             status = names.get(p.status_buy if side == "buy" else p.status_sell, "")
@@ -390,6 +393,8 @@ class TradeApp(App):
             f"roi      {r.roi * 100:.1f}%   conf {r.confidence * 100:.0f}%",
             f"dist     {dist}",
             f"eta      {r.eta_min:.1f} min · {fmt.compact(r.profit_per_hour)}/h",
+            *([f"jump     {r.buy_terminal.system} → {r.sell_terminal.system} via {r.via} "
+               f"[dim](+{float(self.cfg.get('optimizer', 'jump_min', 5)):.0f} min)[/]"] if r.via else []),
             f"[b]wallet → {after:,.0f}[/]",
         ]
         if after - reserve < 0:
@@ -420,8 +425,9 @@ class TradeApp(App):
             f"    [$text-muted]RESERVE[/] {reserve:,.0f}    [$text-muted]BUDGET[/] [b]{max(self.wallet - reserve, 0):,.0f}[/]",
             f"[$text-muted]SHIP[/]    [b]{s.name}[/]  [dim]{s.cargo_scu} SCU · box ≤{s.max_container_scu} · pad {s.pad}[/]",
             f"[$text-muted]SCOPE[/]   [b]{scope}[/]  [dim]{n_terms} terminals[/]    [$text-muted]SORT[/] [b]{SORT_LABELS[self.sort]}[/]"
-            f"    [$text-muted]ILLEGAL[/] {o(self.include_illegal)}    [$text-muted]MIXED[/] {o(self.mixed)}",
-            f"[$text-muted]DATA[/]    {live}  {data}  [dim]· next {nxt}[/]",
+            f"    [$text-muted]ILLEGAL[/] {o(self.include_illegal)}    [$text-muted]MIXED[/] {o(self.mixed)}"
+            f"    [$text-muted]JUMPS[/] {o(self.cross)}",
+            f"[$text-muted]DATA[/]    {live}  {data}  [dim]· next {nxt}[/]{self._sctrade_text(now)}",
             f"[$text-muted]OCR[/]     {self.ocr_status}"
             + (f"    [$text-muted]TERMINAL[/] {self.terminal_status}" if self.terminal_status else ""),
         ]))
@@ -435,6 +441,20 @@ class TradeApp(App):
             banner.set_classes("show")
         else:
             banner.set_classes("")
+
+    def _sctrade_text(self, now: float) -> str:
+        meta = self.svc.sctrade_status()
+        if meta is None:
+            return ""
+        failed = meta["last_error"] and (meta["fetched_at"] is None or meta["last_attempt"] >= meta["fetched_at"])
+        if failed:
+            state = "[#ffd23f]unreachable[/]"
+        elif meta["fetched_at"] is None:
+            state = "[dim]waiting[/]"
+        else:
+            used = self.ds.sctrade_used if self.ds else 0
+            state = f"{used} newer than UEX [dim]{fmt.clock(meta['fetched_at'])}[/]"
+        return f"    [$text-muted]SC TRADE[/] [{fmt.STT}]◆[/] {state}"
 
     # wallet
 
@@ -586,6 +606,12 @@ class TradeApp(App):
 
     def action_mixed(self) -> None:
         self.mixed = not self.mixed
+        self.recompute()
+
+    def action_jumps(self) -> None:
+        self.cross = not self.cross
+        if not self.tagged:
+            self.notify("Jumps only matter with more than one system on: press y.", title="Jumps")
         self.recompute()
 
     def action_help(self) -> None:

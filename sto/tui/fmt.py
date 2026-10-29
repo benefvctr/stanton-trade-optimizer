@@ -7,6 +7,7 @@ from rich.text import Text
 
 BAR = " ▏▎▍▌▋▊▉█"
 GOOD, WARN, BAD = "#7ddc6a", "#ffd23f", "#ff4f3a"
+STT = "#5fd7d7"     # SC Trade Tools reports
 
 
 def compact(n: float) -> str:
@@ -76,13 +77,14 @@ def place(label: str, system: str, tagged: bool) -> Text | str:
     return Text.assemble((tag.ljust(4), f"bold {color}"), " ", label)
 
 
-FLAG_CODES = {"you": "★", "pad ?": "P?", "box ?": "B?", "demand ?": "D?", "dist ~": "~", "stale": "S"}
+FLAG_CODES = {"you": "★", "stt": "◆", "pad ?": "P?", "box ?": "B?", "demand ?": "D?", "dist ~": "~", "stale": "S"}
 
 
 def flag_text(flags: tuple[str, ...]) -> Text:
     t = Text()
     for f in flags:
         code = FLAG_CODES.get(f, f)
-        style = GOOD if f == "you" else BAD if f == "stale" else WARN if f in ("pad ?", "box ?") else "#8a8a8a"
+        style = (GOOD if f == "you" else STT if f == "stt" else BAD if f == "stale"
+                 else WARN if f in ("pad ?", "box ?") else "#8a8a8a")
         t.append(code + " ", style=style)
     return t

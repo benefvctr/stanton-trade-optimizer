@@ -32,14 +32,31 @@ Checked against live responses on 2026-10-29. Raw samples are in `fixtures/sampl
 | Live in game | `terminals.is_available_live` | 0 on 37 of 117 Stanton commodity terminals; excluded |
 | Legality | `commodities.is_illegal` | 18 commodities, one global flag |
 | Ship hold | `vehicles.scu`, `container_sizes`, `pad_type` | Centaurus id 292: 240, blank, L |
-| Distance | `orbits_distances.distance`, `terminals_distances.distance` | strings, gigameters |
+| Distance | `orbits_distances.distance`, `terminals_distances.distance` | strings, gigameters. `orbits_distances?id_star_system=N` also returns pairs from system N to the other systems (Stanton: 564 to Pyro, 174 to Nyx). |
+| Jump points | gateway terminals, `place` like `Pyro Gateway (Stanton)` | no jump-point endpoint used; the gateway names say which systems connect |
 | Fuel price | `fuel_prices_all.price_buy` where `commodity_name = "Quantum Fuel"` | median per system |
+
+## SC Trade Tools community reports
+
+`GET https://sc-trade.tools/api/crowdsource/commodity-listings?page=N`, documented at sc-trade.tools/swagger-ui, no token. 100 reports per page, newest first, cached by them for an hour. Their aggregated price endpoints need a paid token and carry no timestamps, so the app doesn't use them.
+
+| Field | Meaning | Notes |
+|---|---|---|
+| `location` | `stanton > arccorp > baijini point` | last part matches a UEX terminal's place; gateways come without a system (`nyx gateway`) |
+| `transaction` | `SELLS` (you buy) / `BUYS` (you sell) | |
+| `commodity` | lower-case name | matches UEX `commodities.name` |
+| `price` | aUEC per SCU | unfiltered: misread leading digits happen (54,400 for 3,700), so reports off by more than 2x from UEX are dropped |
+| `quantity` | SCU in stock | used for the buy side only |
+| `saturation` | 0 empty to 1 full | mapped to inventory status 1 to 7 |
+| `boxSizesInScu` | list | often null |
+| `timestamp` | ISO time in UTC, when the player saw it | newest report per terminal, commodity and side wins if it is newer than UEX |
 
 ## Not in the API (config instead)
 
 - Quantum drive speed and spool: `qt_speed_gm_s`, `qt_spool_s` per ship.
 - Fuel burn: `qt_fuel_scu_per_gm` per ship (`vehicles.fuel_quantum` is 0 for many ships).
 - Max box for ships where `vehicles.container_sizes` is blank: `max_container_scu`.
+- Time through a jump tunnel: `jump_min` under `[optimizer]`.
 
 ## Errors
 

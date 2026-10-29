@@ -295,6 +295,7 @@ HELP_TEXT = """\
   s  ships: switch, add from UEX, remove    l  toggle illegal commodities
   o  sort: score / profit / profit per hour
   y  systems: Stanton / Pyro / Nyx / all      m  mixed cargo
+  x  jumps: with several systems on, runs that cross a jump point
   c  calibrate the OCR region (auto-detects the balance)    q  quit
   F1 in game (mobiGlas) reads your balance by OCR
   Opening a commodity terminal in game reads its prices automatically
@@ -307,6 +308,7 @@ HELP_TEXT = """\
 
 [b $primary]FLAGS[/]
   ★   uses prices you read at an in-game terminal (fresh, yours)
+  ◆   uses a community report from SC Trade Tools, newer than UEX
   P?  pad size unknown at one end (UEX knows few; add [pad_overrides])
   B?  container sizes unknown at one end
   D?  sell terminal reports no demand: qty is not capped by it
@@ -314,7 +316,8 @@ HELP_TEXT = """\
   S   stale: confidence under 25%
 
 [b $primary]DATA[/]
-  Crowdsourced UEX prices. Check the terminal before you buy.
+  Crowdsourced UEX prices, topped up with newer SC Trade Tools reports.
+  Check the terminal before you buy.
   Travel time uses your ship's qt_speed_gm_s from config.toml.
 """
 

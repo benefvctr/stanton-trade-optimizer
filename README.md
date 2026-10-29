@@ -2,7 +2,7 @@
 
 Shows you the most profitable cargo runs in Star Citizen right now, sized to the money in your wallet and the hold of the ship you fly.
 
-- Prices come from [UEX](https://uexcorp.space), where players report terminal prices.
+- Prices come from [UEX](https://uexcorp.space), where players report terminal prices, topped up with newer community reports from [SC Trade Tools](https://sc-trade.tools).
 - The app refreshes them every few minutes.
 - Press F1 in game to open the mobiGlas, and the app reads your balance off the screen by itself.
 
@@ -60,6 +60,24 @@ The routes that use these prices are marked **★** and count as fresh. They bea
 
 Turn it off with `enabled = false` under `[terminal]` in `config.toml`.
 
+## SC Trade Tools reports
+
+Players also send prices to [SC Trade Tools](https://sc-trade.tools), and some of those are newer than what UEX has. Once an hour the app fetches their free public feed (one small request) and, for each terminal and commodity, uses a report when it is newer than UEX's.
+
+- **Marked `◆`.** Routes using one of these prices get the `◆` flag, and the detail pane says which price came from SC Trade Tools. The DATA line shows how many prices currently beat UEX.
+- **Checked first.** The feed is unfiltered, and some reports have a misread digit (copper at 54,400 instead of 3,700). The app skips any report far off the UEX price for that commodity.
+- **Yours still win.** A terminal you read yourself beats any report older than your reading.
+
+Turn it off with `enabled = false` under `[sctrade]` in `config.toml`. If you find it useful, SC Trade Tools runs on donations: [Patreon](https://www.patreon.com/sc_trade_tools), [Ko-fi](https://ko-fi.com/sc_trade_tools).
+
+## Jumping between systems
+
+With more than one system on (press `y` until it shows all three), the table also ranks runs that buy in one system and sell in another, through a jump point. `x` turns these on and off.
+
+- **How it shows:** each place starts with its system (`STAN`, `PYRO`, `NYX`), so a crossing run reads like `PYRO Last Landings` → `STAN Everus Harbor`. The RUN pane names the gateway you fly through.
+- **Travel time:** distances through the gateway come from UEX. The trip through the jump tunnel isn't in their data, so the app adds `jump_min` minutes (5 by default) per run. Time one jump and change it in `config.toml`.
+- **Know the risk:** Pyro and Nyx have no security. The app ranks runs by money and time only.
+
 ## Using it
 
 | Key | What it does |
@@ -71,6 +89,7 @@ Turn it off with `enabled = false` under `[terminal]` in `config.toml`.
 | `o` | sort by: best bet (profit x confidence), raw profit, or profit per hour |
 | `l` | include illegal goods or not |
 | `m` | mixed cargo: fill leftover space with a second commodity on the same run |
+| `x` | jumps: with several systems on, include runs between systems |
 | `c` | set up balance reading (OCR) |
 | `?` | help |
 | `q` | quit |
@@ -81,7 +100,7 @@ Arrow up and down through the table, and the panes at the bottom show the detail
 
 ### Reading the table
 
-- **BUY AT / SELL AT:** where to buy, and where to sell. With all three systems on (`y`), each place starts with its system: `STAN`, `PYRO` or `NYX`. Both ends of a run are always in the same system.
+- **BUY AT / SELL AT:** where to buy, and where to sell. With all three systems on (`y`), each place starts with its system: `STAN`, `PYRO` or `NYX`.
 - **QTY:** how many SCU to buy. Limited by your hold, your budget, the stock at the buy terminal, and how much the sell terminal will take (when known).
 - **INVEST / PROFIT:** what you spend, and what you make after estimated fuel.
 - **MRG / ROI:** profit per SCU as a share of the sell price, and profit as a share of what you spend.
@@ -95,6 +114,7 @@ Flags at the end of a row:
 | Flag | Meaning |
 |---|---|
 | `★` | uses prices you read at an in-game terminal yourself |
+| `◆` | uses a newer price reported to SC Trade Tools |
 | `P?` | UEX doesn't know if your ship fits that landing pad (most terminals) |
 | `B?` | container sizes at that terminal are unknown |
 | `D?` | the sell terminal's demand is unknown, so the quantity isn't capped by it |
@@ -127,6 +147,7 @@ Everything lives in `config.toml`, which the app creates the first time it runs.
 
 - **Reserve:** `reserve`, the money the app never spends. Default 150,000.
 - **Systems:** `systems`, which systems to include when the app starts.
+- **Jumps:** `cross_system` turns runs between systems on or off, and `jump_min` sets how long a jump takes.
 - **Price refresh:** `price_refresh_s`, how often prices refresh. Default every 5 minutes.
 - **Landing pads you know:** `[pad_overrides]`. Once you know a terminal takes your ship, add a line like `"ARC-L1" = "S,M,L"` and its `P?` goes away.
 
@@ -160,6 +181,7 @@ It never reads game memory, never sends keys or clicks to the game, and never to
 | Setup says Windows OCR has no language | Add English in Windows Settings > Time and language > Language and region, then restart the app. Until then, use `w` |
 | Running the game as administrator | Then the F1 listener can't see keys. Run Star Citizen normally, or use `w` |
 | No routes shown | Your wallet may be at or below the reserve. Press `w`, or lower `reserve` in `config.toml` |
+| SC TRADE says unreachable | Their site is down or your connection dropped. UEX prices carry on; the app tries again in 15 minutes |
 | Terminal prices aren't read | Check the TERMINAL part of the status line. Stand so the whole terminal is on screen, with the game window focused. Every reading is logged in `logs\ocr.log` (lines starting with TERMINAL) |
 | Something else breaks | The app keeps running and logs the error to `logs\app.log`. Send that file to whoever gave you the app |
 
@@ -168,7 +190,7 @@ It never reads game memory, never sends keys or clicks to the game, and never to
 - **Prices are player reports.** They can be hours or days old. Check the terminal before you buy.
 - **Missing details.** Demand and landing-pad sizes are missing for most terminals in UEX's data. The flags show where.
 - **Estimates.** Travel times and fuel costs are estimates, not game data.
-- **One system per run.** Both ends of a run are in the same system. No multi-stop routes, contracts or in-game overlay.
+- **One jump per run.** A run goes from one terminal to another, through at most one jump point. No multi-stop routes, contracts or in-game overlay.
 
 ## For tinkerers
 

@@ -1,6 +1,7 @@
 """Rank commodity runs. Pure functions: no I/O, "now" comes in through Settings.
 
-For each (commodity, buy terminal, sell terminal) in one system:
+For each (commodity, buy terminal, sell terminal) in one system, or in two
+systems joined by a jump point when cross_system is on:
     budget = wallet - reserve
     qty    = min(cargo_scu, floor(budget / buy_price), stock_at_buy, demand_at_sell)
     profit = qty * (sell_price - buy_price) - estimated_fuel_cost
@@ -41,6 +42,8 @@ class Settings:
     same_orbit_gm: float = 1.0
     show_unknown_pad: bool = True
     include_offline: bool = False
+    cross_system: bool = False        # also pair terminals in two systems joined by a jump point
+    jump_min: float = 5.0             # minutes added for the jump: the tunnel plus a second spool
 
     @property
     def budget(self) -> float:
@@ -78,6 +81,7 @@ class Route:
     sell_age_h: float
     confidence: float
     flags: tuple[str, ...]
+    via: str = ""                     # gateway station when the run jumps to another system
 
     @property
     def commodity(self) -> Commodity:
@@ -186,7 +190,10 @@ def find_routes(ds: Dataset, s: Settings) -> list[Route]:
                 if sp.terminal_id == b.terminal_id or sp.price_sell <= b.price_buy:
                     continue
                 st = ds.terminals[sp.terminal_id]
-                if st.system_id != bt.system_id or pad(st) == NO:
+                if st.system_id != bt.system_id and not (
+                        s.cross_system and st.system_id in ds.jumps.get(bt.system_id, {})):
+                    continue
+                if pad(st) == NO:
                     continue
                 if box_check(sp.container_sizes, ship.max_container_scu) == NO:
                     continue
@@ -200,7 +207,8 @@ def find_routes(ds: Dataset, s: Settings) -> list[Route]:
         bt, st = ds.terminals[bid], ds.terminals[sid]
         leg = leg_distance(ds, bt, st, s.same_orbit_gm, median_cache)
         fuel = fuel_cost(leg.gm, ship, ds.qt_fuel_price.get(bt.system_id, ds.qt_fuel_price.get(0, 0.0)))
-        eta = eta_minutes(leg.gm, ship, s.overhead_min)
+        via = ds.jumps[bt.system_id][st.system_id] if st.system_id != bt.system_id else ""
+        eta = eta_minutes(leg.gm, ship, s.overhead_min) + (s.jump_min if via else 0.0)
         if s.mixed_cargo:
             candidates = sorted(candidates, key=lambda c: c.sell.price_sell - c.buy.price_buy, reverse=True)
             fills = [_fill(candidates, ship.cargo_scu, s.budget)]
@@ -209,7 +217,7 @@ def find_routes(ds: Dataset, s: Settings) -> list[Route]:
         for cargo in fills:
             if not cargo:
                 continue
-            route = _route(bt, st, tuple(cargo), leg, eta, fuel, s)
+            route = _route(bt, st, tuple(cargo), leg, eta, fuel, s, via)
             if route.profit > 0:
                 routes.append(route)
 
@@ -238,7 +246,7 @@ def _fill(candidates: list[Cargo], hold: int, budget: float) -> list[Cargo]:
 
 
 def _route(bt: Terminal, st: Terminal, cargo: tuple[Cargo, ...], leg: Leg, eta: float, fuel: float,
-           s: Settings) -> Route:
+           s: Settings, via: str = "") -> Route:
     buy_age = max((s.now - c.buy.updated) / 3600 for c in cargo)
     sell_age = max((s.now - c.sell.updated) / 3600 for c in cargo)
     conf = min(confidence(buy_age, s.confidence_full_h, s.confidence_half_life_h),
@@ -246,6 +254,8 @@ def _route(bt: Terminal, st: Terminal, cargo: tuple[Cargo, ...], leg: Leg, eta: 
     flags = []
     if any("you" in (c.buy.source, c.sell.source) for c in cargo):
         flags.append("you")
+    if any("stt" in (c.buy.source, c.sell.source) for c in cargo):
+        flags.append("stt")
     if any(c.demand is None for c in cargo):
         conf *= s.unknown_demand_factor
         flags.append("demand ?")
@@ -259,4 +269,4 @@ def _route(bt: Terminal, st: Terminal, cargo: tuple[Cargo, ...], leg: Leg, eta: 
     if conf < STALE_BELOW:
         flags.append("stale")
     profit = sum(c.gross for c in cargo) - fuel
-    return Route(bt, st, cargo, leg, eta, fuel, profit, buy_age, sell_age, conf, tuple(flags))
+    return Route(bt, st, cargo, leg, eta, fuel, profit, buy_age, sell_age, conf, tuple(flags), via)

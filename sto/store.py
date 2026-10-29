@@ -1,5 +1,6 @@
 """SQLite cache: the last good response per endpoint, fetch outcomes, looked-up
-terminal distances and small bits of app state (last wallet read)."""
+terminal distances, your terminal reads, SC Trade Tools reports and small bits
+of app state (last wallet read)."""
 from __future__ import annotations
 
 import json
@@ -27,6 +28,13 @@ CREATE TABLE IF NOT EXISTS capture (
     price REAL, scu INTEGER, status INTEGER, boxes TEXT,
     captured_at REAL,              -- read off the in-game terminal screen
     PRIMARY KEY (terminal_id, commodity_id, side)
+);
+CREATE TABLE IF NOT EXISTS sctrade_listing (
+    location TEXT, commodity TEXT, -- as SC Trade Tools names them, lower case
+    side TEXT,                     -- "buy" (the shop sells) or "sell" (the shop buys)
+    price REAL, scu INTEGER, saturation REAL, boxes TEXT,
+    observed_at REAL,              -- when the player saw it
+    PRIMARY KEY (location, commodity, side, observed_at, price)
 );
 CREATE TABLE IF NOT EXISTS state (
     key TEXT PRIMARY KEY,
@@ -107,6 +115,30 @@ class Store:
                 f"SELECT {', '.join(self.CAPTURE_FIELDS)} FROM capture WHERE captured_at >= ?", (newer_than,)
             ).fetchall()
         return [dict(zip(self.CAPTURE_FIELDS, r)) for r in rows]
+
+    LISTING_FIELDS = ("location", "commodity", "side", "price", "scu", "saturation", "boxes", "observed_at")
+
+    def save_listings(self, rows: list[dict], older_than: float = 0) -> None:
+        """Add SC Trade Tools reports and drop the ones too old to matter."""
+        with self.lock, self.db:
+            self.db.executemany(
+                f"INSERT OR IGNORE INTO sctrade_listing ({', '.join(self.LISTING_FIELDS)}) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [tuple(r.get(f) for f in self.LISTING_FIELDS) for r in rows],
+            )
+            self.db.execute("DELETE FROM sctrade_listing WHERE observed_at < ?", (older_than,))
+
+    def listings(self, newer_than: float = 0) -> list[dict]:
+        with self.lock:
+            rows = self.db.execute(
+                f"SELECT {', '.join(self.LISTING_FIELDS)} FROM sctrade_listing WHERE observed_at >= ?", (newer_than,)
+            ).fetchall()
+        return [dict(zip(self.LISTING_FIELDS, r)) for r in rows]
+
+    def newest_listing(self) -> float:
+        with self.lock:
+            row = self.db.execute("SELECT MAX(observed_at) FROM sctrade_listing").fetchone()
+        return row[0] or 0.0
 
     def get_state(self, key: str, default=None):
         with self.lock:
