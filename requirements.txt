@@ -1,0 +1,23 @@
+# Exact versions this app was tested with. setup.ps1 installs these into .venv.
+# Works on Python 3.12, 3.13 and 3.14 (64-bit Windows).
+textual==8.2.8
+rich==15.0.0
+markdown-it-py==4.2.0
+mdit-py-plugins==0.6.1
+linkify-it-py==2.2.0
+mdurl==0.1.2
+platformdirs==4.14.0
+Pygments==2.21.0
+typing_extensions==4.16.0
+tomlkit==0.15.2
+mss==10.2.0
+keyboard==0.13.5
+pillow==13.0.0
+# Windows' built-in OCR (Windows.Media.Ocr) through PyWinRT
+winrt-runtime==3.2.1
+winrt-Windows.Media.Ocr==3.2.1
+winrt-Windows.Graphics.Imaging==3.2.1
+winrt-Windows.Storage.Streams==3.2.1
+winrt-Windows.Globalization==3.2.1
+winrt-Windows.Foundation==3.2.1
+winrt-Windows.Foundation.Collections==3.2.1

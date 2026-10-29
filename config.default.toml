@@ -1,0 +1,93 @@
+# Stanton Trade Optimizer default settings.
+# The first time the app runs it copies this file to config.toml. Edit config.toml,
+# not this one: updates replace this file but never touch your config.toml.
+# When the app saves (ship switch, calibration) it keeps the comments.
+# Your UEX token does NOT go here; it goes in .env as UEX_TOKEN=...
+
+[wallet]
+# Balance used until an OCR read or a manual entry (w) gives a newer one.
+balance = 0
+# aUEC the optimizer never spends on cargo: fuel, repairs, fines.
+reserve = 150000
+
+[data]
+# Seconds between price refreshes. UEX caches prices for ~30 min server-side,
+# so polling faster than that mostly returns the same numbers.
+price_refresh_s = 300
+# Seconds between fuel price refreshes.
+fuel_refresh_s = 3600
+# Hours between refreshes of terminals, locations, distances and vehicles.
+static_refresh_h = 24
+# Systems whose routes are considered (y cycles through them in the app).
+# Any of "Stanton", "Pyro", "Nyx". Both ends of a route stay in one system.
+systems = ["Stanton"]
+# Client-side cap on UEX requests per minute. UEX allows 120.
+max_requests_per_min = 60
+
+[optimizer]
+# Include commodities UEX flags as illegal (l toggles it in the app).
+include_illegal = false
+# Ranking: "score" (profit x confidence), "profit", or "profit_per_hour" (o cycles).
+sort = "score"
+# Rows shown in the route table.
+top_n = 15
+# Fill leftover hold space with the next-best commodity on the same pair (m toggles).
+mixed_cargo = false
+# Minutes per run spent landing, loading, unloading and taking off.
+overhead_min = 8
+# Price confidence is 1.0 up to this age in hours...
+confidence_full_h = 2
+# ...then halves every this many hours (0.5 at 24 h, 0.11 at 3 days with defaults).
+confidence_half_life_h = 22
+# Confidence multiplier when the sell terminal reports no demand figure.
+unknown_demand_factor = 0.8
+# Distance in Gm assumed for a hop inside one orbit (a planet and its moons,
+# or two stations at one Lagrange point) until the real distance is looked up.
+same_orbit_gm = 1.0
+# Show routes whose landing pad size is unknown (flagged "pad ?").
+# UEX only knows pad sizes for a small share of terminals.
+show_unknown_pad = true
+
+[ship]
+# Name of the active profile below (s switches it in the app).
+active = "Constellation Mk V Centaurus"
+
+# Ship profiles. Add more with: python -m sto --add-ship "Hull C"
+# cargo_scu, pad: from the UEX vehicles list where it has them.
+# max_container_scu: biggest box the hold takes (UEX leaves this blank for some ships).
+# qt_speed_gm_s: effective quantum speed in gigameters per second. UEX has no
+#   drive speeds; time one known jump and divide its distance by the seconds.
+# qt_spool_s: seconds of spool and alignment per jump.
+# qt_fuel_scu_per_gm: quantum fuel burn estimate (UEX has no burn rates).
+[ships."Constellation Mk V Centaurus"]
+uex_id = 292
+cargo_scu = 240
+max_container_scu = 32
+pad = "L"
+qt_speed_gm_s = 0.2
+qt_spool_s = 10
+qt_fuel_scu_per_gm = 0.02
+
+[ocr]
+# Read the balance from the mobiGlas when the hotkey is pressed.
+enabled = true
+# Key that opens the mobiGlas in game. The listener never blocks the key.
+hotkey = "f1"
+# Seconds to wait after the key for the mobiGlas to finish opening.
+delay_s = 1.2
+# "auto" (Windows OCR, then Tesseract), "windows", or "tesseract".
+engine = "auto"
+# Path to tesseract.exe if it's not on PATH (only used as a fallback).
+tesseract_cmd = ""
+# A balance change bigger than this percent needs two matching reads in a row.
+big_change_pct = 60
+# Screen region holding the balance, set by pressing c in the app.
+# monitor: mss monitor number (1 = first). region: left, top, width, height in
+# physical pixels relative to that monitor. All zeros = not calibrated yet.
+monitor = 1
+region = [0, 0, 0, 0]
+
+[pad_overrides]
+# Terminals whose pads you know, by nickname or code, e.g.
+# "ARC-L1" = "S,M,L"
+# These win over UEX data. Use "" to mark a terminal you can't land at.

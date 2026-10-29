@@ -1,0 +1,16 @@
+{
+  "status": "ok",
+  "http_code": 200,
+  "data": {
+    "orbit_name_origin": "ArcCorp Lagrange Point 1",
+    "terminal_name_origin": "Admin - ARC-L1",
+    "terminal_nickname_origin": "ARC-L1",
+    "terminal_code_origin": "ARCL1",
+    "orbit_name_destination": "ArcCorp",
+    "terminal_name_destination": "TDD - Trade and Development Division - Area 18",
+    "terminal_nickname_destination": "TDD Area 18",
+    "terminal_code_destination": "TDA18",
+    "distance": "3"
+  },
+  "message": ""
+}

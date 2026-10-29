@@ -1,0 +1,95 @@
+/* Phosphor terminal: black, warm white, orange. */
+
+Screen {
+    background: $background;
+    color: $foreground;
+}
+
+#header {
+    height: 9;
+    padding: 0 1;
+    border-bottom: heavy $primary-darken-2;
+}
+
+#wordmark {
+    width: 30;
+    height: 8;
+}
+
+#status {
+    width: 1fr;
+    height: 8;
+    padding: 0 0 0 2;
+    content-align: left middle;
+}
+
+#banner {
+    display: none;
+    height: 1;
+    padding: 0 1;
+    background: $error;
+    color: #0a0a0a;
+    text-style: bold;
+}
+
+#banner.show {
+    display: block;
+}
+
+#banner.info {
+    background: $primary;
+}
+
+#routes {
+    height: 1fr;
+    min-height: 8;
+    border: round $primary-darken-1;
+    border-title-color: $primary;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    background: $background;
+    scrollbar-color: $primary-darken-2;
+}
+
+#routes > .datatable--header {
+    background: $panel;
+    color: $primary;
+    text-style: bold;
+}
+
+#routes > .datatable--cursor {
+    background: $primary 28%;
+    color: $foreground;
+    text-style: bold;
+}
+
+#routes > .datatable--even-row {
+    background: $surface;
+}
+
+#detail {
+    height: 11;
+}
+
+#detail > Static {
+    width: 1fr;
+    height: 100%;
+    padding: 0 1;
+    border: round $primary-darken-2;
+    border-title-color: $primary;
+    border-title-style: bold;
+}
+
+#detail > #run {
+    width: 34;
+}
+
+Footer {
+    background: $panel;
+}
+
+Footer .footer-key--key {
+    color: $background;
+    background: $primary;
+    text-style: bold;
+}

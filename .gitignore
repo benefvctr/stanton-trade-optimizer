@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+cache/
+logs/
+*.sqlite
+*.db
+fixtures/raw/
+dist/
+config.toml
+.release-guard

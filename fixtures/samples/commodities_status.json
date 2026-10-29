@@ -1,0 +1,151 @@
+{
+  "status": "ok",
+  "http_code": 200,
+  "data": {
+    "buy": [
+      {
+        "code": 1,
+        "name": "Out of Stock (Empty)",
+        "name_short": "Out Stock",
+        "name_abbr": "OS",
+        "percentage": "0-14%",
+        "percentage_start": 0,
+        "percentage_end": 14,
+        "colors": "red"
+      },
+      {
+        "code": 2,
+        "name": "Very Low Inventory",
+        "name_short": "Very Low",
+        "name_abbr": "VL",
+        "percentage": "15-28%",
+        "percentage_start": 15,
+        "percentage_end": 28,
+        "colors": "red"
+      },
+      {
+        "code": 3,
+        "name": "Low Inventory",
+        "name_short": "Low",
+        "name_abbr": "LO",
+        "percentage": "29-43%",
+        "percentage_start": 29,
+        "percentage_end": 43,
+        "colors": "orange"
+      },
+      {
+        "code": 4,
+        "name": "Medium Inventory",
+        "name_short": "Medium",
+        "name_abbr": "ME",
+        "percentage": "44-57%",
+        "percentage_start": 44,
+        "percentage_end": 57,
+        "colors": "blue"
+      },
+      {
+        "code": 5,
+        "name": "High Inventory",
+        "name_short": "High",
+        "name_abbr": "HI",
+        "percentage": "58-71%",
+        "percentage_start": 58,
+        "percentage_end": 71,
+        "colors": "blue"
+      },
+      {
+        "code": 6,
+        "name": "Very High Inventory",
+        "name_short": "Very High",
+        "name_abbr": "VH",
+        "percentage": "72-85%",
+        "percentage_start": 72,
+        "percentage_end": 85,
+        "colors": "green"
+      },
+      {
+        "code": 7,
+        "name": "Maximum Inventory (Full)",
+        "name_short": "Maximum",
+        "name_abbr": "MA",
+        "percentage": "86-100%",
+        "percentage_start": 86,
+        "percentage_end": 100,
+        "colors": "green"
+      }
+    ],
+    "sell": [
+      {
+        "code": 1,
+        "name": "Out of Stock (Empty)",
+        "name_short": "Out Stock",
+        "name_abbr": "OS",
+        "percentage": "0-14%",
+        "percentage_start": 0,
+        "percentage_end": 14,
+        "colors": "green"
+      },
+      {
+        "code": 2,
+        "name": "Very Low Inventory",
+        "name_short": "Very Low",
+        "name_abbr": "VL",
+        "percentage": "15-28%",
+        "percentage_start": 15,
+        "percentage_end": 28,
+        "colors": "green"
+      },
+      {
+        "code": 3,
+        "name": "Low Inventory",
+        "name_short": "Low",
+        "name_abbr": "LO",
+        "percentage": "29-43%",
+        "percentage_start": 29,
+        "percentage_end": 43,
+        "colors": "blue"
+      },
+      {
+        "code": 4,
+        "name": "Medium Inventory",
+        "name_short": "Medium",
+        "name_abbr": "ME",
+        "percentage": "44-57%",
+        "percentage_start": 44,
+        "percentage_end": 57,
+        "colors": "blue"
+      },
+      {
+        "code": 5,
+        "name": "High Inventory",
+        "name_short": "High",
+        "name_abbr": "HI",
+        "percentage": "58-71%",
+        "percentage_start": 58,
+        "percentage_end": 71,
+        "colors": "orange"
+      },
+      {
+        "code": 6,
+        "name": "Very High Inventory",
+        "name_short": "Very High",
+        "name_abbr": "VH",
+        "percentage": "72-85%",
+        "percentage_start": 72,
+        "percentage_end": 85,
+        "colors": "red"
+      },
+      {
+        "code": 7,
+        "name": "Maximum Inventory (No Demand)",
+        "name_short": "Maximum (No Demand)",
+        "name_abbr": "ND",
+        "percentage": "86-100%",
+        "percentage_start": 86,
+        "percentage_end": 100,
+        "colors": "red"
+      }
+    ]
+  },
+  "message": ""
+}

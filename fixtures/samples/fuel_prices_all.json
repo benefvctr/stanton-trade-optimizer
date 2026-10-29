@@ -1,0 +1,62 @@
+{
+  "status": "ok",
+  "http_code": 200,
+  "data": [
+    {
+      "id": 1,
+      "id_commodity": 87,
+      "id_terminal": 416,
+      "price_buy": 1700,
+      "price_buy_avg": 1702,
+      "date_added": 1728519434,
+      "date_modified": 1791866649,
+      "commodity_name": "Quantum Fuel",
+      "terminal_name": "New Babbage"
+    },
+    {
+      "id": 2,
+      "id_commodity": 104,
+      "id_terminal": 416,
+      "price_buy": 798,
+      "price_buy_avg": 797,
+      "date_added": 1728519434,
+      "date_modified": 1791866649,
+      "commodity_name": "Hydrogen Fuel",
+      "terminal_name": "New Babbage"
+    },
+    {
+      "id": 3,
+      "id_commodity": 87,
+      "id_terminal": 400,
+      "price_buy": 1800,
+      "price_buy_avg": 1800,
+      "date_added": 1728519705,
+      "date_modified": 1792404042,
+      "commodity_name": "Quantum Fuel",
+      "terminal_name": "Port Tressler"
+    },
+    {
+      "id": 4,
+      "id_commodity": 104,
+      "id_terminal": 400,
+      "price_buy": 800,
+      "price_buy_avg": 800,
+      "date_added": 1728519705,
+      "date_modified": 1792404042,
+      "commodity_name": "Hydrogen Fuel",
+      "terminal_name": "Port Tressler"
+    },
+    {
+      "id": 5,
+      "id_commodity": 87,
+      "id_terminal": 395,
+      "price_buy": 1800,
+      "price_buy_avg": 1800,
+      "date_added": 1728520022,
+      "date_modified": 1789582589,
+      "commodity_name": "Quantum Fuel",
+      "terminal_name": "MIC-L2"
+    }
+  ],
+  "message": ""
+}
