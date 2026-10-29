@@ -81,7 +81,7 @@ Arrow up and down through the table, and the panes at the bottom show the detail
 
 ### Reading the table
 
-- **BUY AT / SELL AT:** where to buy, and where to sell.
+- **BUY AT / SELL AT:** where to buy, and where to sell. With all three systems on (`y`), each place starts with its system: `STAN`, `PYRO` or `NYX`. Both ends of a run are always in the same system.
 - **QTY:** how many SCU to buy. Limited by your hold, your budget, the stock at the buy terminal, and how much the sell terminal will take (when known).
 - **INVEST / PROFIT:** what you spend, and what you make after estimated fuel.
 - **MRG / ROI:** profit per SCU as a share of the sell price, and profit as a share of what you spend.

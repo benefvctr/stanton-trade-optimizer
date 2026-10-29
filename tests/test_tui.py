@@ -3,6 +3,7 @@ banner, against the real snapshot served by a fake UEX transport."""
 import shutil
 
 import pytest
+from rich.text import Text
 from textual.widgets import DataTable, Static
 from textual.worker import WorkerCancelled
 
@@ -10,6 +11,7 @@ from sto.config import ROOT, Config
 from sto.data import DataService
 from sto.ocr.sync import Read
 from sto.store import Store
+from sto.tui import fmt
 from sto.tui.app import TradeApp
 from sto.uex import RateLimiter, UexClient
 
@@ -130,6 +132,46 @@ async def test_toggles_sort_illegal_systems_mixed(app_parts):
         assert app.routes and all(r.buy_terminal.system == "Pyro" for r in app.routes)
         await pilot.press("m")
         assert app.mixed
+
+
+def place_cells(app):
+    table = app.query_one("#routes", DataTable)
+    return [tuple(str(c) for c in table.get_row_at(i)[2:4]) for i in range(table.row_count)]
+
+
+async def test_places_carry_a_system_tag_only_when_systems_mix(app_parts):
+    app = make_app(app_parts)
+    async with app.run_test(size=SIZE) as pilot:
+        await settle(app, pilot)
+        assert all(buy == r.buy_terminal.label for (buy, _), r in zip(place_cells(app), app.routes))
+        await pilot.press("y", "y", "y")                                # Pyro, Nyx, then all three
+        await settle(app, pilot)
+        assert app.scopes[app.scope_idx] == ["Stanton", "Pyro", "Nyx"]
+        tags = {"Stanton": "STAN ", "Pyro": "PYRO ", "Nyx": "NYX  "}
+        for (buy, sell), r in zip(place_cells(app), app.routes):
+            assert buy == tags[r.buy_terminal.system] + r.buy_terminal.label
+            assert sell == tags[r.sell_terminal.system] + r.sell_terminal.label
+        widths = {c.label.plain: c.width for c in app.query_one("#routes", DataTable).columns.values()}
+        assert widths["BUY AT"] == widths["SELL AT"] == 20
+        assert buy_title(app) == f"▌BUY ▸ {buy_cell(app)}"
+        await pilot.press("y")                                          # back to Stanton alone
+        await settle(app, pilot)
+        assert all(not buy.startswith("STAN ") for buy, _ in place_cells(app))
+        assert buy_title(app) == f"▌BUY ▸ {app.routes[0].buy_terminal.label}"
+
+
+def buy_title(app):
+    return Text.from_markup(str(app.query_one("#buy").border_title)).plain
+
+
+def buy_cell(app):
+    return place_cells(app)[app.query_one("#routes", DataTable).cursor_row][0]
+
+
+def test_every_live_system_has_its_own_tag():
+    assert [str(fmt.place("Checkmate", s, True)) for s in ("Stanton", "Pyro", "Nyx", "Castra")] == [
+        "STAN Checkmate", "PYRO Checkmate", "NYX  Checkmate", "CAST Checkmate"]
+    assert fmt.place("Checkmate", "Pyro", False) == "Checkmate"
 
 
 async def test_ship_switch_saves_config(app_parts):

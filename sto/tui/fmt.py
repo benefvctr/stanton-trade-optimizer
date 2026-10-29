@@ -60,6 +60,22 @@ def countdown(seconds: float) -> str:
     return f"{seconds // 60:02d}:{seconds % 60:02d}"
 
 
+SYSTEM_TAGS = {"Stanton": ("STAN", "#8fc6ff"), "Pyro": ("PYRO", "#ff6a3d"), "Nyx": ("NYX", "#c49bff")}
+
+
+def system_tag(system: str) -> tuple[str, str]:
+    """Four-letter tag and colour for a star system; unknown systems get their first four letters."""
+    return SYSTEM_TAGS.get(system, ((system or "?")[:4].upper(), "#8a8a8a"))
+
+
+def place(label: str, system: str, tagged: bool) -> Text | str:
+    """A terminal name, prefixed with its system tag when the table mixes systems."""
+    if not tagged:
+        return label
+    tag, color = system_tag(system)
+    return Text.assemble((tag.ljust(4), f"bold {color}"), " ", label)
+
+
 FLAG_CODES = {"you": "★", "pad ?": "P?", "box ?": "B?", "demand ?": "D?", "dist ~": "~", "stale": "S"}
 
 

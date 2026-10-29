@@ -54,6 +54,8 @@ SORT_LABELS = {"score": "SCORE", "profit": "PROFIT", "profit_per_hour": "PROFIT/
 COLUMNS = [("#", 2), ("COMMODITY", 13), ("BUY AT", 15), ("SELL AT", 15), ("QTY", 3), ("INVEST", 6),
            ("PROFIT", 7), ("MRG", 4), ("ROI", 4), ("GM", 4), ("ETA", 4), ("P/HR", 6), ("AGE", 4),
            ("CONF", 4), ("FLAGS", 9)]
+PLACE_COLUMNS = ("BUY AT", "SELL AT")
+TAG_WIDTH = 5   # "STAN " in front of each place when the table mixes systems
 MAX_LOOKUPS_PER_RUN = 60
 
 
@@ -113,6 +115,7 @@ class TradeApp(App):
 
         self.ds: Dataset | None = None
         self.routes: list[Route] = []
+        self._columns_tagged = False
         self.loading = True
         self.refreshing = False
         self.last_errors: list[str] = []
@@ -138,9 +141,7 @@ class TradeApp(App):
     def on_mount(self) -> None:
         self.register_theme(PHOSPHOR)
         self.theme = PHOSPHOR.name
-        table = self.query_one("#routes", DataTable)
-        for label, width in COLUMNS:
-            table.add_column(label, width=width, key=label)
+        self.set_columns(tagged=False)
         for pane, title in (("#buy", "BUY"), ("#sell", "SELL"), ("#run", "RUN")):
             self.query_one(pane).border_title = f"▌{title}"
         self.update_status()
@@ -284,15 +285,33 @@ class TradeApp(App):
 
     # table and detail
 
+    @property
+    def tagged(self) -> bool:
+        """Places carry a STAN / PYRO / NYX tag when the scope spans more than one system."""
+        return len(self.scopes[self.scope_idx]) > 1
+
+    def set_columns(self, tagged: bool) -> None:
+        table = self.query_one("#routes", DataTable)
+        table.clear(columns=True)
+        for label, width in COLUMNS:
+            width += TAG_WIDTH if tagged and label in PLACE_COLUMNS else 0
+            table.add_column(label, width=width, key=label)
+        self._columns_tagged = tagged
+
     def fill_table(self) -> None:
         table = self.query_one("#routes", DataTable)
         keep = table.cursor_row
+        tagged = self.tagged
+        if tagged != self._columns_tagged:
+            self.set_columns(tagged)
         table.clear()
         for i, r in enumerate(self.routes, 1):
             name = r.commodity.name if len(r.cargo) == 1 else f"{r.commodity.name}+{len(r.cargo) - 1}"
             dist = f"{r.leg.gm:.0f}" + ("~" if r.leg.is_estimate else "")
+            bt, st = r.buy_terminal, r.sell_terminal
             table.add_row(
-                Text(str(i), style="dim"), name, r.buy_terminal.label, r.sell_terminal.label, str(r.qty),
+                Text(str(i), style="dim"), name, fmt.place(bt.label, bt.system, tagged),
+                fmt.place(st.label, st.system, tagged), str(r.qty),
                 fmt.compact(r.investment), Text(fmt.compact(r.profit), style="bold #ff8a1f"),
                 f"{r.margin_pct:.0f}%", f"{r.roi * 100:.0f}%", dist, f"{r.eta_min:.0f}m",
                 fmt.compact(r.profit_per_hour), fmt.aged(r.age_h), fmt.conf_bar(r.confidence),
@@ -325,8 +344,8 @@ class TradeApp(App):
             return
         r = self.routes[index]
         now = self.clock()
-        buy.border_title = f"▌BUY ▸ {r.buy_terminal.label}"
-        sell.border_title = f"▌SELL ▸ {r.sell_terminal.label}"
+        for pane, title, t in ((buy, "BUY", r.buy_terminal), (sell, "SELL", r.sell_terminal)):
+            pane.border_title = Text.assemble(f"▌{title} ▸ ", fmt.place(t.label, t.system, self.tagged))
         buy.update(self._side(r, "buy", now))
         sell.update(self._side(r, "sell", now))
         run.update(self._run(r))

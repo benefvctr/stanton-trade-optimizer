@@ -302,6 +302,7 @@ HELP_TEXT = """\
 [b $primary]COLUMNS[/]
   AGE   oldest of the buy and sell price reports (green <6h, yellow <48h, red)
   CONF  confidence from age: full to 2h, half at 24h, ~0 after 3 days
+  STAN / PYRO / NYX  the system of each place, shown when more than one system is on
   SCORE profit x confidence (the default ranking)
 
 [b $primary]FLAGS[/]
