@@ -1,6 +1,7 @@
 """Reading in-game commodity terminals: number parsing, full reads of two real
 captures (Port Tressler buy list, Baijini Point with cargo to sell), terminal
 identification, the price overlay and the background watcher."""
+import logging
 from dataclasses import replace
 
 import pytest
@@ -162,8 +163,11 @@ def test_capture_rows_skip_rows_without_a_price(snapshot_ds):
 
 def make_watcher(engine, vocab, window, image, seen):
     clock = {"t": 0.0}
+    quiet = logging.getLogger("test.terminal")      # never the real logs/ocr.log
+    quiet.addHandler(logging.NullHandler())
+    quiet.propagate = False
     w = TerminalWatcher(context=lambda: vocab, on_screen=seen.append, engine=engine, window=window,
-                        grab=lambda rect: image, repeat_s=60, clock=lambda: clock["t"])
+                        grab=lambda rect: image, repeat_s=60, clock=lambda: clock["t"], log=quiet)
     return w, clock
 
 

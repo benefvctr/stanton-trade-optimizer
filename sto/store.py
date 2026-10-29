@@ -1,6 +1,6 @@
 """SQLite cache: the last good response per endpoint, fetch outcomes, looked-up
-terminal distances, your terminal reads, SC Trade Tools reports and small bits
-of app state (last wallet read)."""
+terminal distances, your terminal reads, SC Trade Tools reports, the wallet
+history and small bits of app state (last wallet read)."""
 from __future__ import annotations
 
 import json
@@ -35,6 +35,11 @@ CREATE TABLE IF NOT EXISTS sctrade_listing (
     price REAL, scu INTEGER, saturation REAL, boxes TEXT,
     observed_at REAL,              -- when the player saw it
     PRIMARY KEY (location, commodity, side, observed_at, price)
+);
+CREATE TABLE IF NOT EXISTS wallet_log (
+    at REAL,                       -- when the balance was read
+    value INTEGER,
+    source TEXT                    -- "ocr", "terminal" or "manual"
 );
 CREATE TABLE IF NOT EXISTS state (
     key TEXT PRIMARY KEY,
@@ -139,6 +144,24 @@ class Store:
         with self.lock:
             row = self.db.execute("SELECT MAX(observed_at) FROM sctrade_listing").fetchone()
         return row[0] or 0.0
+
+    def log_wallet(self, at: float, value: int, source: str) -> bool:
+        """Record a balance reading unless it repeats the last one. True when recorded."""
+        with self.lock, self.db:
+            last = self.db.execute("SELECT value FROM wallet_log ORDER BY at DESC, rowid DESC LIMIT 1").fetchone()
+            if last and last[0] == value:
+                return False
+            self.db.execute("INSERT INTO wallet_log (at, value, source) VALUES (?, ?, ?)", (at, value, source))
+        return True
+
+    def wallet_log(self, newer_than: float = 0):
+        from .wallet_log import Entry
+
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT at, value, source FROM wallet_log WHERE at >= ? ORDER BY at, rowid", (newer_than,)
+            ).fetchall()
+        return [Entry(*r) for r in rows]
 
     def get_state(self, key: str, default=None):
         with self.lock:

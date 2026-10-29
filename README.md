@@ -39,11 +39,20 @@ If Windows shows "Windows protected your PC" or "The publisher could not be veri
 Make the window big. The app needs about 140 columns by 40 rows to show everything, so maximize it. In a smaller window it hides the logo and the detail pane, and the route table stays.
 
 1. **Tell it your balance.** Pick one:
-   - **Automatic (recommended).** Press `c`, then `A`. You get 5 seconds: switch to the game and press F1 to open the mobiGlas. The app finds your balance on screen, saves where it is, and shows the number it read. From then on, every time you press F1 in game, your balance updates in the app.
+   - **Automatic (recommended).** Press `c`, then `A`. You get 5 seconds: switch to the game and press F1 to open the mobiGlas. The app finds your balance on screen, saves where it is, and shows the number it read. From then on, pressing F1 in game updates your balance in the app 2 seconds later. After a good read, F1 rests for 3 minutes before it reads again.
    - **By hand.** Press `w` and type it.
 2. **Pick your ship.** Press `s`, then `A`, type part of the name (`cutlass`, `cat`, `hull c`) and press Enter. The default is a Constellation Mk V Centaurus (240 SCU).
 
 That's it. The table now shows the best runs for your money and your hold.
+
+## What you earned
+
+Every balance reading goes into a wallet history: F1, the balance on a commodity terminal, or one you typed. The EARNED line in the header turns those into money made:
+- **Last run:** your balance after selling minus your balance before buying. While cargo is aboard it shows what you spent (`▼`, in yellow).
+- **Session:** the change since your first reading after you opened the app.
+- **History:** press `h` for every reading in the last 12 hours, with what changed each time.
+
+For an exact run figure, get a reading before you buy and after you sell. Opening the terminal does that by itself, and F1 works too.
 
 ## Terminal prices (automatic)
 
@@ -91,6 +100,7 @@ With more than one system on (press `y` until it shows all three), the table als
 | `m` | mixed cargo: fill leftover space with a second commodity on the same run |
 | `x` | jumps: with several systems on, include runs between systems |
 | `c` | set up balance reading (OCR) |
+| `h` | wallet history: every balance reading and what you earned |
 | `?` | help |
 | `q` | quit |
 
@@ -177,7 +187,7 @@ It never reads game memory, never sends keys or clicks to the game, and never to
 | Setup says Python wasn't found after installing it | Close the window and run `setup.cmd` again |
 | Setup can't install packages | Check your internet connection and run `setup.cmd` again |
 | `c` then `A` says it can't find the mobiGlas | Press F1 within the 5 seconds and keep the mobiGlas on its home screen until the notification shows. Or take a screenshot with the mobiGlas open and use `c` then `F` instead |
-| F1 stops updating the balance | Run `c` then `A` again, for example after changing resolution or monitor. Every read is logged in `logs\ocr.log` |
+| F1 stops updating the balance | It rests for 3 minutes after a good read (the OCR line shows until when). Otherwise run `c` then `A` again, for example after changing resolution or monitor. Every read is logged in `logs\ocr.log` |
 | Setup says Windows OCR has no language | Add English in Windows Settings > Time and language > Language and region, then restart the app. Until then, use `w` |
 | Running the game as administrator | Then the F1 listener can't see keys. Run Star Citizen normally, or use `w` |
 | No routes shown | Your wallet may be at or below the reserve. Press `w`, or lower `reserve` in `config.toml` |

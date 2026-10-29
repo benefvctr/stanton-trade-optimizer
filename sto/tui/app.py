@@ -23,7 +23,8 @@ from ..optimizer import PAD_ORDER, Route, Settings, find_routes
 from ..store import Store
 from . import fmt
 from .banner import wordmark_markup
-from .screens import AddShipScreen, CalibrateScreen, ChoiceScreen, HelpScreen, ShipScreen, WalletScreen
+from .screens import (AddShipScreen, CalibrateScreen, ChoiceScreen, HelpScreen, ShipScreen, WalletHistoryScreen,
+                      WalletScreen)
 
 def app_log() -> logging.Logger:
     log = logging.getLogger("sto.app")
@@ -57,6 +58,7 @@ COLUMNS = [("#", 2), ("COMMODITY", 13), ("BUY AT", 15), ("SELL AT", 15), ("QTY",
 PLACE_COLUMNS = ("BUY AT", "SELL AT")
 TAG_WIDTH = 5   # "STAN " in front of each place when the table mixes systems
 MAX_LOOKUPS_PER_RUN = 60
+WALLET_HISTORY_S = 12 * 3600   # readings kept in view for the RUN figure and the history (h)
 
 
 class TradeApp(App):
@@ -73,6 +75,7 @@ class TradeApp(App):
         Binding("m", "mixed", "Mixed"),
         Binding("x", "jumps", "Jumps"),
         Binding("c", "calibrate", "Calibrate"),
+        Binding("h", "history", "History"),
         Binding("question_mark", "help", "Help", key_display="?"),
         Binding("q", "quit", "Quit"),
     ]
@@ -95,12 +98,14 @@ class TradeApp(App):
         self.references: dict[str, float] = {}
 
         saved = store.get_state("wallet")
-        if saved and saved.get("source") in ("ocr", "manual"):
+        if saved and saved.get("source") in ("ocr", "terminal", "manual"):
             self.wallet, self.wallet_source, self.wallet_at = int(saved["value"]), saved["source"], saved.get("at")
         else:
             self.wallet, self.wallet_source, self.wallet_at = int(config.get("wallet", "balance", 0)), "config", None
         self.sanity = WalletSanity(float(config.get("ocr", "big_change_pct", 60)),
                                    self.wallet if self.wallet_source != "config" else None)
+        self.started_at = clock()
+        self.wallet_entries = store.wallet_log(newer_than=self.started_at - WALLET_HISTORY_S)
 
         self.ship = config.active_ship()
         self.include_illegal = bool(config.get("optimizer", "include_illegal", False))
@@ -406,7 +411,7 @@ class TradeApp(App):
     def update_status(self) -> None:
         now = self.clock()
         reserve = float(self.cfg.get("wallet", "reserve", 150_000))
-        src = {"ocr": "OCR", "manual": "MANUAL", "config": "CONFIG"}[self.wallet_source]
+        src = {"ocr": "OCR", "terminal": "TERMINAL", "manual": "MANUAL", "config": "CONFIG"}[self.wallet_source]
         when = fmt.clock(self.wallet_at) if self.wallet_at else "default"
         f = self.svc.freshness()
         if f.prices_at:
@@ -423,12 +428,13 @@ class TradeApp(App):
             "",
             f"[$text-muted]WALLET[/]  [b #ff8a1f]{self.wallet:,} aUEC[/]  [dim]{src} {when}[/]"
             f"    [$text-muted]RESERVE[/] {reserve:,.0f}    [$text-muted]BUDGET[/] [b]{max(self.wallet - reserve, 0):,.0f}[/]",
+            f"[$text-muted]EARNED[/]  {self._earnings_text()}",
             f"[$text-muted]SHIP[/]    [b]{s.name}[/]  [dim]{s.cargo_scu} SCU · box ≤{s.max_container_scu} · pad {s.pad}[/]",
             f"[$text-muted]SCOPE[/]   [b]{scope}[/]  [dim]{n_terms} terminals[/]    [$text-muted]SORT[/] [b]{SORT_LABELS[self.sort]}[/]"
             f"    [$text-muted]ILLEGAL[/] {o(self.include_illegal)}    [$text-muted]MIXED[/] {o(self.mixed)}"
             f"    [$text-muted]JUMPS[/] {o(self.cross)}",
             f"[$text-muted]DATA[/]    {live}  {data}  [dim]· next {nxt}[/]{self._sctrade_text(now)}",
-            f"[$text-muted]OCR[/]     {self.ocr_status}"
+            f"[$text-muted]OCR[/]     {self.ocr_status}{self._cooldown_text()}"
             + (f"    [$text-muted]TERMINAL[/] {self.terminal_status}" if self.terminal_status else ""),
         ]))
         banner = self.query_one("#banner", Static)
@@ -441,6 +447,29 @@ class TradeApp(App):
             banner.set_classes("show")
         else:
             banner.set_classes("")
+
+    def _earnings_text(self) -> str:
+        from ..wallet_log import last_run, session_change
+
+        run = last_run(self.wallet_entries)
+        if run is None:
+            return "[dim]needs a balance reading before and after a run (F1, or open a terminal)[/]"
+        if run.in_progress:
+            text = f"[#ffd23f]▼ {run.change:,}[/] [dim]in cargo since {fmt.clock(run.since)}[/]"
+        else:
+            color = fmt.GOOD if run.change >= 0 else fmt.BAD
+            text = f"[b {color}]{'▲ +' if run.change >= 0 else '▼ '}{run.change:,}[/] [dim]last run[/]"
+        session = [e for e in self.wallet_entries if e.at >= self.started_at]
+        change = session_change(session)
+        if change is not None:
+            color = fmt.GOOD if change >= 0 else fmt.BAD
+            text += (f"    [$text-muted]SESSION[/] [{color}]{'+' if change >= 0 else ''}{change:,}[/]"
+                     f" [dim]since {fmt.clock(session[0].at)}[/]")
+        return text + "    [dim]h history[/]"
+
+    def _cooldown_text(self) -> str:
+        nxt = self.sync.next_read_at() if self.sync is not None else None
+        return f"  [dim]· F1 reads again at {fmt.clock(nxt)}[/]" if nxt else ""
 
     def _sctrade_text(self, now: float) -> str:
         meta = self.svc.sctrade_status()
@@ -461,6 +490,10 @@ class TradeApp(App):
     def set_wallet(self, value: int, source: str, at: float | None = None) -> None:
         self.wallet, self.wallet_source, self.wallet_at = int(value), source, at or self.clock()
         self.store.set_state("wallet", {"value": self.wallet, "source": source, "at": self.wallet_at})
+        if self.store.log_wallet(self.wallet_at, self.wallet, source):
+            from ..wallet_log import Entry
+
+            self.wallet_entries.append(Entry(self.wallet_at, self.wallet, source))
         if source == "manual":
             self.sanity.reset(self.wallet)
         self.recompute()
@@ -474,7 +507,8 @@ class TradeApp(App):
             region=self.cfg.ocr_region, sanity=self.sanity,
             on_read=lambda read: self.call_from_thread(self.on_ocr_read, read),
             on_region_moved=lambda monitor, region: self.call_from_thread(self.region_moved, monitor, region),
-            hotkey=str(g("ocr", "hotkey", "f1")), delay_s=float(g("ocr", "delay_s", 1.2)),
+            hotkey=str(g("ocr", "hotkey", "f1")), delay_s=float(g("ocr", "delay_s", 2)),
+            cooldown_s=float(g("ocr", "cooldown_min", 3)) * 60,
             engine_kind=str(g("ocr", "engine", "auto")), tesseract_cmd=str(g("ocr", "tesseract_cmd", "")),
         )
         try:
@@ -616,6 +650,9 @@ class TradeApp(App):
 
     def action_help(self) -> None:
         self.push_screen(HelpScreen())
+
+    def action_history(self) -> None:
+        self.push_screen(WalletHistoryScreen(self.wallet_entries))
 
     def action_calibrate(self) -> None:
         from ..ocr import capture
@@ -784,5 +821,5 @@ class TradeApp(App):
         else:
             self.terminal_status = f"[#ffd23f]●[/] {where}"
         if balance and self.sanity.offer(balance)[0]:
-            self.set_wallet(balance, "ocr")
+            self.set_wallet(balance, "terminal")
         self.update_status()

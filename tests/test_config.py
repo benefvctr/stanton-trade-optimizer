@@ -21,7 +21,7 @@ def test_defaults_match_the_spec(tmp_path):
     assert cfg.get("data", "price_refresh_s") == 300
     assert cfg.get("data", "systems") == ["Stanton"]
     assert cfg.get("optimizer", "overhead_min") == 8
-    assert cfg.get("ocr", "delay_s") == 1.2
+    assert cfg.get("ocr", "delay_s") == 2 and cfg.get("ocr", "cooldown_min") == 3
     assert cfg.get("ocr", "big_change_pct") == 60
 
 

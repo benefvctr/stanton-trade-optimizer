@@ -149,3 +149,43 @@ def test_windows_ocr_reads_the_real_mobiglas_balance():
     r = sync.read_image(image.crop((x, y, x + w, y + h)), apply=False)
     assert r.value == 2_257_549, r.text
     assert parse_balance(r.text.split(" | ")[0]) == 2_257_549
+
+
+def test_after_a_good_read_f1_rests_for_the_cooldown():
+    sync, reads, _ = make_sync(FakeEngine("1,000,000", "1,000,500", "1,001,000"))
+    clock = {"t": 1000.0}
+    sync.clock = lambda: clock["t"]
+    assert sync.cooldown_s == 180 and sync.delay_s == 2.0          # the defaults
+    sync._pressed()
+    wait_for(lambda: len(reads) == 1)
+    assert sync.next_read_at() == 1180
+    clock["t"] = 1100
+    sync._pressed()                                                # inside the 3 minutes: no read
+    threading.Event().wait(0.1)
+    assert len(reads) == 1
+    clock["t"] = 1180
+    assert sync.next_read_at() is None
+    sync._pressed()
+    wait_for(lambda: len(reads) == 2)
+    assert reads[1].value == 1_000_500
+
+
+def test_a_missed_read_does_not_start_the_cooldown():
+    from sto.ocr.capture import ocr_variants
+
+    tries = len(list(ocr_variants(Image.new("RGB", (120, 40)))))       # every text size comes back empty
+    sync, reads, _ = make_sync(FakeEngine(*[""] * tries, "1,000,000"), last=1_000_000)
+    sync._pressed()                                                # mobiGlas not open yet: nothing read
+    wait_for(lambda: len(reads) == 1)
+    assert not reads[0].accepted and sync.next_read_at() is None
+    sync._pressed()
+    wait_for(lambda: len(reads) == 2)
+    assert reads[1].accepted
+
+
+def wait_for(condition, timeout=3.0):
+    for _ in range(int(timeout / 0.02)):
+        if condition():
+            return
+        threading.Event().wait(0.02)
+    raise AssertionError("timed out")

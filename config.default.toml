@@ -81,7 +81,10 @@ enabled = true
 # Key that opens the mobiGlas in game. The listener never blocks the key.
 hotkey = "f1"
 # Seconds to wait after the key for the mobiGlas to finish opening.
-delay_s = 1.2
+delay_s = 2
+# After a good read, the key is ignored for this many minutes: one read before
+# a run and one after is enough, and closing the mobiGlas isn't read as a miss.
+cooldown_min = 3
 # "auto" (Windows OCR, then Tesseract), "windows", or "tesseract".
 engine = "auto"
 # Path to tesseract.exe if it's not on PATH (only used as a fallback).

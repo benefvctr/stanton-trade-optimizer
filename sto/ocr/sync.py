@@ -1,6 +1,10 @@
 """F1 -> wait for the mobiGlas -> capture the calibrated region -> OCR -> parse
 -> sanity rules -> callback. Every read is logged to logs/ocr.log.
 
+After an accepted read, F1 presses are ignored for a cooldown (3 minutes by
+default): one read before a trade run and one after is all the wallet needs,
+and the press that closes the mobiGlas no longer logs a failed read.
+
 Game interaction is limited to a global key listener that never suppresses
 the key, and a screen capture of one small region. No memory reads, no input
 injection, no hooks into the game process.
@@ -54,7 +58,8 @@ def ocr_logger(path: Path = LOG_DIR / "ocr.log") -> logging.Logger:
 class WalletSync:
     def __init__(self, *, region: Callable[[], tuple[int, tuple[int, int, int, int]] | None],
                  sanity: WalletSanity, on_read: Callable[[Read], None], hotkey: str = "f1",
-                 delay_s: float = 1.2, engine_kind: str = "auto", tesseract_cmd: str = "",
+                 delay_s: float = 2.0, cooldown_s: float = 180.0, engine_kind: str = "auto",
+                 tesseract_cmd: str = "",
                  grab: Callable[..., Image.Image] = capture.grab, engine=None,
                  log: logging.Logger | None = None, sleep: Callable[[float], None] = time.sleep,
                  clock: Callable[[], float] = time.time,
@@ -68,6 +73,8 @@ class WalletSync:
         self.on_read = on_read
         self.hotkey = hotkey
         self.delay_s = delay_s
+        self.cooldown_s = cooldown_s
+        self.last_accepted: float | None = None
         self.engine_kind = engine_kind
         self.tesseract_cmd = tesseract_cmd
         self.grab = grab
@@ -84,7 +91,8 @@ class WalletSync:
         import keyboard
 
         self._hook = keyboard.on_press_key(self.hotkey, self._pressed, suppress=False)
-        self.log.info("listening for %s (delay %.1fs)", self.hotkey.upper(), self.delay_s)
+        self.log.info("listening for %s (delay %.1fs, cooldown %.0fs)", self.hotkey.upper(), self.delay_s,
+                      self.cooldown_s)
 
     def stop(self) -> None:
         if self._hook is not None:
@@ -93,7 +101,15 @@ class WalletSync:
             keyboard.unhook(self._hook)
             self._hook = None
 
+    def next_read_at(self) -> float | None:
+        """When F1 reads again, or None when it reads on the next press."""
+        if self.last_accepted is None or self.clock() - self.last_accepted >= self.cooldown_s:
+            return None
+        return self.last_accepted + self.cooldown_s
+
     def _pressed(self, _event=None) -> None:
+        if self.next_read_at() is not None:
+            return
         # Holding the key repeats it; one read at a time.
         if self._busy.acquire(blocking=False):
             threading.Thread(target=self._delayed_read, daemon=True).start()
@@ -177,6 +193,8 @@ class WalletSync:
     def _finish(self, text: str, value: int | None, accepted: bool, reason: str, engine: str,
                 apply: bool = True) -> Read:
         read = Read(self.clock(), text, value, accepted, reason, engine)
+        if accepted and apply:
+            self.last_accepted = read.at
         self.log.info("%s value=%s reason=%s engine=%s raw=%r",
                       "ACCEPT" if accepted else "REJECT", value, reason, engine, text)
         if apply:

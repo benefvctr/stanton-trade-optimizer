@@ -289,6 +289,40 @@ class CalibrateScreen(Dialog):
         self.dismiss(("coords", (monitor, tuple(nums[:4]))))
 
 
+SOURCES = {"ocr": "F1", "terminal": "terminal", "manual": "typed"}
+
+
+class WalletHistoryScreen(Dialog):
+    """Balance readings from the last 12 hours, newest first, each with the
+    change from the one before it."""
+
+    def __init__(self, entries, shown: int = 20):
+        super().__init__()
+        self.entries = list(entries)
+        self.shown = shown
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("WALLET HISTORY", classes="title")
+            yield Static(self.body(), id="history")
+            yield Label("Esc to close", classes="hint")
+
+    def body(self) -> str:
+        if not self.entries:
+            return "No readings yet. Press F1 in game, open a commodity terminal, or press w."
+        lines = ["[b]TIME         BALANCE           CHANGE   FROM[/]"]
+        pairs = list(zip(self.entries, [None, *self.entries[:-1]]))[-self.shown:]
+        for e, before in reversed(pairs):
+            change = ""
+            if before is not None:
+                d = e.value - before.value
+                change = f"[{'#7ddc6a' if d >= 0 else '#ff4f3a'}]{'+' if d >= 0 else ''}{d:,}[/]"
+            pad = " " * max(0, 16 - len(Text.from_markup(change).plain))
+            when = time.strftime("%H:%M", time.localtime(e.at))
+            lines.append(f"{when}   {e.value:>13,}   {pad}{change}   [dim]{SOURCES.get(e.source, e.source)}[/]")
+        return "\n".join(lines)
+
+
 HELP_TEXT = """\
 [b $primary]KEYS[/]
   r  refresh prices now          w  enter wallet manually
@@ -297,7 +331,8 @@ HELP_TEXT = """\
   y  systems: Stanton / Pyro / Nyx / all      m  mixed cargo
   x  jumps: with several systems on, runs that cross a jump point
   c  calibrate the OCR region (auto-detects the balance)    q  quit
-  F1 in game (mobiGlas) reads your balance by OCR
+  h  wallet history: every balance reading and what changed
+  F1 in game (mobiGlas) reads your balance by OCR, then rests 3 minutes
   Opening a commodity terminal in game reads its prices automatically
 
 [b $primary]COLUMNS[/]
@@ -314,6 +349,11 @@ HELP_TEXT = """\
   D?  sell terminal reports no demand: qty is not capped by it
   ~   distance estimated (same orbit or missing pair)
   S   stale: confidence under 25%
+
+[b $primary]EARNED[/]
+  last run  balance after selling minus balance before buying (▼ while cargo is aboard)
+  SESSION   change since the first balance reading after the app started
+  Every F1 read, terminal read and typed balance counts; h lists them.
 
 [b $primary]DATA[/]
   Crowdsourced UEX prices, topped up with newer SC Trade Tools reports.

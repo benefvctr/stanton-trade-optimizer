@@ -34,6 +34,9 @@ class FakeSync:
     def stop(self):
         pass
 
+    def next_read_at(self):
+        return None
+
     def grab(self, monitor, box):
         from PIL import Image
         return Image.new("RGB", (box[2], box[3]))
@@ -64,9 +67,23 @@ def app_parts(snapshot_raw, tmp_path):
     return cfg, svc, store, clock, state
 
 
+class FakeWatcher:
+    """Stands in for the terminal watcher, which would capture the real screen."""
+
+    def __init__(self, **kw):
+        self.kw = kw
+
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
+
 def make_app(app_parts, **kw):
     cfg, svc, store, clock, _ = app_parts
     kw.setdefault("start_ocr", False)
+    kw.setdefault("terminal_factory", FakeWatcher)
     return TradeApp(cfg, svc, store, clock=clock, **kw)
 
 
@@ -402,7 +419,8 @@ async def test_a_terminal_capture_updates_routes_status_and_wallet(app_parts):
         saved = app.store.captures()
         assert len(saved) == 7 and all(c["side"] == "buy" for c in saved)
         assert "Port Tressler" in app.terminal_status
-        assert app.wallet == 2_366_183 and app.wallet_source == "ocr"
+        assert app.wallet == 2_366_183 and app.wallet_source == "terminal"
+        assert app.store.wallet_log()[-1].source == "terminal"
         ice = next(p for p in app.ds.prices if p.source == "you" and p.price_buy == 4536)
         assert ice.scu_buy == 514 and ice.updated == pytest.approx(app.clock())
         tressler = [r for r in app.routes if r.buy_terminal.label == "Port Tressler"]
@@ -467,3 +485,33 @@ async def test_sc_trade_tools_reports_show_in_the_header_and_the_detail(app_part
         assert "◆" in str(app.query_one("#routes", DataTable).get_row_at(i)[-1])
         app.show_detail(i)
         assert "◆ SC Trade Tools" in str(app.query_one("#buy", Static).render())
+
+
+async def test_the_header_shows_what_the_last_run_and_the_session_earned(app_parts):
+    app = make_app(app_parts)
+    async with app.run_test(size=SIZE) as pilot:
+        await settle(app, pilot)
+        assert "needs a balance reading" in status(app)
+        t0 = app.clock()
+        app.set_wallet(2_000_000, "ocr", t0)                       # before buying
+        app.set_wallet(1_500_000, "terminal", t0 + 60)             # cargo bought
+        await pilot.pause()
+        assert "▼ -500,000" in status(app) and "in cargo" in status(app)
+        app.set_wallet(2_400_000, "terminal", t0 + 1500)           # sold
+        await pilot.pause()
+        assert "▲ +400,000 last run" in status(app) and "SESSION +400,000" in status(app)
+        await pilot.press("h")
+        await pilot.pause()
+        history = str(app.screen.query_one("#history", Static).render())
+        assert "2,400,000" in history and "+900,000" in history and "-500,000" in history
+        assert history.index("2,400,000") < history.index("1,500,000")     # newest first
+        await pilot.press("escape")
+
+
+async def test_the_ocr_line_says_when_f1_reads_again(app_parts):
+    app = make_app(app_parts, start_ocr=True, sync_factory=FakeSync)
+    async with app.run_test(size=SIZE) as pilot:
+        await settle(app, pilot)
+        FakeSync.instances[-1].next_read_at = lambda: app.clock() + 120
+        app.update_status()
+        assert "F1 reads again at" in status(app)
