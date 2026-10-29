@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import statistics
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 TRADE_TYPES = ("commodity", "commodity_raw")
 LOCATION_TABLES = (("id_space_station", "space_stations"), ("id_outpost", "outposts"),
@@ -95,6 +95,7 @@ class Price:
     status_sell: int
     container_sizes: tuple[int, ...] | None
     updated: float         # date_modified, unix seconds
+    source: str = "uex"    # "uex", or "you" for a price read off an in-game terminal
 
     @property
     def demand(self) -> int | None:
@@ -180,6 +181,42 @@ def build_prices(rows: list[dict]) -> list[Price]:
     ]
 
 
+def apply_captures(prices: list[Price], captures: list[dict]) -> list[Price]:
+    """Overlay prices read off in-game terminals. A capture replaces that side
+    of the UEX row (buy or sell) unless UEX has a newer report; the other side
+    stays as UEX had it, with its own age."""
+    out = list(prices)
+    index = {(p.commodity_id, p.terminal_id): i for i, p in enumerate(out)}
+    for c in sorted(captures, key=lambda c: c["captured_at"]):
+        if not c.get("price"):
+            continue
+        i = index.get((c["commodity_id"], c["terminal_id"]))
+        uex = out[i] if i is not None else None
+        if uex is not None and uex.updated >= c["captured_at"]:
+            continue
+        if c["side"] == "buy":
+            stock = c["scu"] if c.get("scu") is not None else (uex.scu_buy if uex else 0)
+            new = Price(c["commodity_id"], c["terminal_id"], price_buy=float(c["price"]), price_sell=0,
+                        scu_buy=int(stock), scu_buy_avg=int(stock), scu_sell=0, scu_sell_avg=0, scu_sell_stock=0,
+                        status_buy=int(c.get("status") or (uex.status_buy if uex else 0)), status_sell=0,
+                        container_sizes=parse_csv_sizes(c.get("boxes")) or (uex.container_sizes if uex else None),
+                        updated=float(c["captured_at"]), source="you")
+            rest = replace(uex, price_buy=0, scu_buy=0, scu_buy_avg=0, status_buy=0) if uex else None
+        else:
+            # The terminal listed it under IN DEMAND, so it isn't full: no status 7 from a stale report.
+            new = Price(c["commodity_id"], c["terminal_id"], price_buy=0, price_sell=float(c["price"]),
+                        scu_buy=0, scu_buy_avg=0,
+                        scu_sell=uex.scu_sell if uex else 0, scu_sell_avg=uex.scu_sell_avg if uex else 0,
+                        scu_sell_stock=uex.scu_sell_stock if uex else 0, status_buy=0, status_sell=0,
+                        container_sizes=uex.container_sizes if uex else None,
+                        updated=float(c["captured_at"]), source="you")
+            rest = replace(uex, price_sell=0, scu_sell=0, scu_sell_avg=0, status_sell=0) if uex else None
+        if rest is not None:
+            out[i] = rest
+        out.append(new)
+    return out
+
+
 def build_commodities(rows: list[dict]) -> dict[int, Commodity]:
     return {c["id"]: Commodity(c["id"], c.get("name") or "", c.get("code") or "", c.get("kind") or "",
                                bool(c.get("is_illegal"))) for c in rows}
@@ -220,7 +257,7 @@ def build_status_names(status: dict | None) -> dict[str, dict[int, str]]:
 
 
 def build_dataset(raw: dict, terminal_gm: dict[tuple[int, int], float] | None = None,
-                  pad_overrides: dict[str, str] | None = None) -> Dataset:
+                  pad_overrides: dict[str, str] | None = None, captures: list[dict] | None = None) -> Dataset:
     """raw maps endpoint names (star_systems, terminals, commodities_prices_all,
     orbits_distances, ...) to their response data, as in fixtures/snapshot.json."""
     systems = {s["id"]: s["name"] for s in raw.get("star_systems", []) if s.get("is_available_live")}
@@ -238,7 +275,7 @@ def build_dataset(raw: dict, terminal_gm: dict[tuple[int, int], float] | None = 
         systems=systems,
         terminals=terminals,
         commodities=build_commodities(raw.get("commodities", [])),
-        prices=build_prices(raw.get("commodities_prices_all", [])),
+        prices=apply_captures(build_prices(raw.get("commodities_prices_all", [])), captures or []),
         orbit_gm=orbit_gm,
         terminal_gm=terminal_gm,
         qt_fuel_price=build_fuel_prices(raw.get("fuel_prices_all", []), terminal_system),

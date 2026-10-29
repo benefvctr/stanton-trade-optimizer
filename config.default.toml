@@ -87,6 +87,18 @@ big_change_pct = 60
 monitor = 1
 region = [0, 0, 0, 0]
 
+[terminal]
+# Read prices off in-game commodity terminals automatically: while Star Citizen
+# is the focused window, the app checks the screen every few seconds and reads
+# a terminal when one is open. Screen capture only, like the F1 balance read.
+enabled = true
+# Seconds between checks.
+interval_s = 3
+# The same unchanged terminal screen is read again only after this many seconds.
+repeat_s = 60
+# The game window's title.
+window_title = "Star Citizen"
+
 [pad_overrides]
 # Terminals whose pads you know, by nickname or code, e.g.
 # "ARC-L1" = "S,M,L"

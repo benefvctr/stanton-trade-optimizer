@@ -60,6 +60,37 @@ REGION_TO_TEXT = 3.4   # a calibrated region is about 3.4 text-heights tall
 MAX_OCR_SIDE = 10000   # Windows.Media.Ocr's limit
 
 
+def grab_rect(left: int, top: int, width: int, height: int) -> Image.Image:
+    """Capture a rectangle in virtual-screen coordinates (e.g. a window)."""
+    make_dpi_aware()
+    with _mss() as sct:
+        shot = sct.grab({"left": left, "top": top, "width": width, "height": height})
+        return Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
+
+
+def focused_window(title_prefix: str) -> tuple[int, int, int, int] | None:
+    """(left, top, width, height) of the foreground window when its title
+    starts with title_prefix, else None. Reads the window title and position
+    only; never opens the game's process."""
+    from ctypes import wintypes
+
+    make_dpi_aware()
+    user32 = ctypes.windll.user32
+    hwnd = user32.GetForegroundWindow()
+    if not hwnd:
+        return None
+    length = user32.GetWindowTextLengthW(hwnd)
+    buf = ctypes.create_unicode_buffer(length + 1)
+    user32.GetWindowTextW(hwnd, buf, length + 1)
+    if not buf.value.startswith(title_prefix):
+        return None
+    rect = wintypes.RECT()
+    if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return None
+    width, height = rect.right - rect.left, rect.bottom - rect.top
+    return (rect.left, rect.top, width, height) if width > 200 and height > 200 else None
+
+
 def ocr_variants(image: Image.Image):
     """Windows OCR reads the small italic balance at some text sizes and misses
     it at others, so yield the region resized to several text heights

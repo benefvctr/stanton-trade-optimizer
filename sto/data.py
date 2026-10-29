@@ -137,7 +137,7 @@ class DataService:
         if raw is None:
             return None
         terminal_gm = self.store.terminal_distances(newer_than=self.clock() - self.static_refresh_s)
-        return build_dataset(raw, terminal_gm, pad_overrides)
+        return build_dataset(raw, terminal_gm, pad_overrides, self.store.captures())
 
     def freshness(self) -> Freshness:
         meta = self.store.meta(PRICES)

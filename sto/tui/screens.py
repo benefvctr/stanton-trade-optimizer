@@ -297,6 +297,7 @@ HELP_TEXT = """\
   y  systems: Stanton / Pyro / Nyx / all      m  mixed cargo
   c  calibrate the OCR region (auto-detects the balance)    q  quit
   F1 in game (mobiGlas) reads your balance by OCR
+  Opening a commodity terminal in game reads its prices automatically
 
 [b $primary]COLUMNS[/]
   AGE   oldest of the buy and sell price reports (green <6h, yellow <48h, red)
@@ -304,6 +305,7 @@ HELP_TEXT = """\
   SCORE profit x confidence (the default ranking)
 
 [b $primary]FLAGS[/]
+  ★   uses prices you read at an in-game terminal (fresh, yours)
   P?  pad size unknown at one end (UEX knows few; add [pad_overrides])
   B?  container sizes unknown at one end
   D?  sell terminal reports no demand: qty is not capped by it

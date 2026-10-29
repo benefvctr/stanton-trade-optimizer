@@ -45,6 +45,21 @@ Make the window big. The app needs about 140 columns by 40 rows to show everythi
 
 That's it. The table now shows the best runs for your money and your hold.
 
+## Terminal prices (automatic)
+
+When you open a commodity terminal in game, the app reads its prices off the screen within a few seconds:
+- **Buy list:** every visible row's price, stock and inventory level.
+- **Your cargo:** with cargo selected, what this terminal pays for it.
+- **Your balance:** shown at the top of the terminal, read as a bonus.
+
+The routes that use these prices are marked **★** and count as fresh. They beat UEX's player reports, which are often days old, until UEX gets a newer report.
+
+- **Which terminal:** the screen never names it, so the app works it out. It uses the location shown when one of your inventories is selected, otherwise the set of goods and their prices. If it can't tell, it saves nothing and says so on the TERMINAL status line.
+- **Long lists:** only the rows on screen get read. Scroll a long list to read the rest.
+- **What it needs:** stand so the whole terminal is in view. It only looks while Star Citizen is the focused window.
+
+Turn it off with `enabled = false` under `[terminal]` in `config.toml`.
+
 ## Using it
 
 | Key | What it does |
@@ -79,6 +94,7 @@ Flags at the end of a row:
 
 | Flag | Meaning |
 |---|---|
+| `★` | uses prices you read at an in-game terminal yourself |
 | `P?` | UEX doesn't know if your ship fits that landing pad (most terminals) |
 | `B?` | container sizes at that terminal are unknown |
 | `D?` | the sell terminal's demand is unknown, so the quantity isn't capped by it |
@@ -126,9 +142,10 @@ Close and reopen the app after editing.
 
 ## Is it safe with Easy Anti-Cheat?
 
-The app only does two things that involve the game:
+The app only does three things that involve the game, all of them from outside it:
 - It listens for the F1 key, without blocking it, so the game still gets the key.
 - After F1, it takes a screenshot of the small box around your balance.
+- While Star Citizen is the focused window, it takes a screenshot of the game window every 3 seconds to spot a commodity terminal and read its prices. It finds out which window is focused from the window's title.
 
 It never reads game memory, never sends keys or clicks to the game, and never touches the game's files or process. No administrator rights are needed while Star Citizen runs normally.
 
@@ -143,6 +160,7 @@ It never reads game memory, never sends keys or clicks to the game, and never to
 | Setup says Windows OCR has no language | Add English in Windows Settings > Time and language > Language and region, then restart the app. Until then, use `w` |
 | Running the game as administrator | Then the F1 listener can't see keys. Run Star Citizen normally, or use `w` |
 | No routes shown | Your wallet may be at or below the reserve. Press `w`, or lower `reserve` in `config.toml` |
+| Terminal prices aren't read | Check the TERMINAL part of the status line. Stand so the whole terminal is on screen, with the game window focused. Every reading is logged in `logs\ocr.log` (lines starting with TERMINAL) |
 | Something else breaks | The app keeps running and logs the error to `logs\app.log`. Send that file to whoever gave you the app |
 
 ## Known limits

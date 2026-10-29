@@ -75,7 +75,8 @@ class TradeApp(App):
     ]
 
     def __init__(self, config: Config, service: DataService, store: Store, *,
-                 clock: Callable[[], float] = time.time, start_ocr: bool = True, sync_factory=None):
+                 clock: Callable[[], float] = time.time, start_ocr: bool = True, sync_factory=None,
+                 terminal_factory=None):
         super().__init__()
         self.cfg = config
         self.svc = service
@@ -85,6 +86,10 @@ class TradeApp(App):
         self.sync_factory = sync_factory
         self.sync = None
         self.ocr_status = "OCR off"
+        self.terminal_factory = terminal_factory
+        self.watcher = None
+        self.terminal_status = ""
+        self.references: dict[str, float] = {}
 
         saved = store.get_state("wallet")
         if saved and saved.get("source") in ("ocr", "manual"):
@@ -144,6 +149,8 @@ class TradeApp(App):
         self.set_interval(20, self.tick_refresh)
         if self.start_ocr and bool(self.cfg.get("ocr", "enabled", True)):
             self.start_wallet_sync()
+        if self.start_ocr and bool(self.cfg.get("terminal", "enabled", True)):
+            self.start_terminal_watch()
 
     # A default console window is ~120x30, smaller than the full layout. Drop the
     # wordmark when narrow and the detail pane when short; the table always stays.
@@ -208,6 +215,9 @@ class TradeApp(App):
     def _dataset_ready(self, ds: Dataset | None) -> None:
         if ds is None:
             return
+        from ..captures import commodity_references
+
+        self.references = commodity_references(ds)
         self.ds = ds
         self.recompute()
         self.fill_distance_gaps()
@@ -330,8 +340,9 @@ class TradeApp(App):
             price = p.price_buy if side == "buy" else p.price_sell
             age_h = (now - p.updated) / 3600
             color = fmt.age_color(age_h)
+            mine = "  [b #7ddc6a]★ yours[/]" if p.source == "you" else ""
             lines.append(f"[b]{c.commodity.name}[/]  {price:,.0f}/SCU  [{color}]{fmt.clock(p.updated)} · "
-                         f"{fmt.age_text(age_h)} ago[/]")
+                         f"{fmt.age_text(age_h)} ago[/]{mine}")
             status = names.get(p.status_buy if side == "buy" else p.status_sell, "")
             if side == "buy":
                 lines.append(f"  stock {fmt.full(c.stock)} SCU  [dim]{status}[/]")
@@ -392,7 +403,8 @@ class TradeApp(App):
             f"[$text-muted]SCOPE[/]   [b]{scope}[/]  [dim]{n_terms} terminals[/]    [$text-muted]SORT[/] [b]{SORT_LABELS[self.sort]}[/]"
             f"    [$text-muted]ILLEGAL[/] {o(self.include_illegal)}    [$text-muted]MIXED[/] {o(self.mixed)}",
             f"[$text-muted]DATA[/]    {live}  {data}  [dim]· next {nxt}[/]",
-            f"[$text-muted]OCR[/]     {self.ocr_status}",
+            f"[$text-muted]OCR[/]     {self.ocr_status}"
+            + (f"    [$text-muted]TERMINAL[/] {self.terminal_status}" if self.terminal_status else ""),
         ]))
         banner = self.query_one("#banner", Static)
         if f.stale_since:
@@ -665,3 +677,67 @@ class TradeApp(App):
     def on_unmount(self) -> None:
         if self.sync is not None:
             self.sync.stop()
+        if self.watcher is not None:
+            self.watcher.stop()
+
+    # commodity terminals: read automatically while one is on screen
+
+    def terminal_context(self) -> tuple[list[str], dict[str, float]]:
+        """Called from the watcher thread: commodity names and typical prices."""
+        ds = self.ds
+        return ([c.name for c in ds.commodities.values()], self.references) if ds else ([], {})
+
+    def start_terminal_watch(self) -> None:
+        from ..ocr.terminal_watch import TerminalWatcher
+
+        g = self.cfg.get
+        factory = self.terminal_factory or TerminalWatcher
+        self.watcher = factory(
+            context=self.terminal_context,
+            on_screen=lambda screen: self.call_from_thread(self.terminal_seen, screen),
+            interval_s=float(g("terminal", "interval_s", 3)),
+            repeat_s=float(g("terminal", "repeat_s", 60)),
+            window_title=str(g("terminal", "window_title", "Star Citizen")),
+            engine_kind=str(g("ocr", "engine", "auto")), tesseract_cmd=str(g("ocr", "tesseract_cmd", "")),
+        )
+        self.watcher.start()
+        self.terminal_status = "[#7ddc6a]●[/] watching"
+
+    def terminal_seen(self, screen) -> None:
+        self.terminal_status = "[#ffd23f]●[/] reading terminal..."
+        self.update_status()
+        self.save_terminal_capture(screen)
+
+    @work(thread=True, exclusive=False, group="captures", exit_on_error=False)
+    def save_terminal_capture(self, screen) -> None:
+        from ..captures import capture_rows, identify_terminal
+
+        try:
+            ds = self.ds
+            if ds is None:
+                return
+            found = identify_terminal(ds, screen)
+            if found.terminal_id is None:
+                guess = ", ".join(found.candidates) or "none"
+                self.call_from_thread(self.capture_done, None, 0, f"couldn't tell which terminal (best: {guess})",
+                                      screen.balance)
+                return
+            rows = capture_rows(ds, screen, found.terminal_id, self.clock())
+            self.store.save_captures(rows)
+            fresh = self.svc.dataset(self.cfg.pad_overrides())
+            label = ds.terminals[found.terminal_id].label
+            self.call_from_thread(self.capture_done, fresh, len(rows), label, screen.balance)
+        except Exception as e:  # noqa: BLE001
+            self.call_from_thread(self.capture_done, None, 0, self._background_error("Terminal capture", e), None)
+
+    def capture_done(self, ds: Dataset | None, count: int, where: str, balance: int | None) -> None:
+        when = fmt.clock(self.clock())
+        if ds is not None:
+            self._dataset_ready(ds)
+            self.terminal_status = f"[#7ddc6a]●[/] {count} prices at {where} {when}"
+            self.notify(f"{count} prices read at {where}.", title="Terminal", timeout=4)
+        else:
+            self.terminal_status = f"[#ffd23f]●[/] {where}"
+        if balance and self.sanity.offer(balance)[0]:
+            self.set_wallet(balance, "ocr")
+        self.update_status()

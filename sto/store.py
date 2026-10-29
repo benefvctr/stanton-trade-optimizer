@@ -21,6 +21,13 @@ CREATE TABLE IF NOT EXISTS terminal_distance (
     fetched_at REAL,
     PRIMARY KEY (a, b)
 );
+CREATE TABLE IF NOT EXISTS capture (
+    terminal_id INTEGER, commodity_id INTEGER,
+    side TEXT,                     -- "buy" or "sell"
+    price REAL, scu INTEGER, status INTEGER, boxes TEXT,
+    captured_at REAL,              -- read off the in-game terminal screen
+    PRIMARY KEY (terminal_id, commodity_id, side)
+);
 CREATE TABLE IF NOT EXISTS state (
     key TEXT PRIMARY KEY,
     value TEXT
@@ -83,6 +90,23 @@ class Store:
                 "SELECT a, b, gm FROM terminal_distance WHERE fetched_at >= ?", (newer_than,)
             ).fetchall()
         return {(a, b): gm for a, b, gm in rows}
+
+    CAPTURE_FIELDS = ("terminal_id", "commodity_id", "side", "price", "scu", "status", "boxes", "captured_at")
+
+    def save_captures(self, rows: list[dict]) -> None:
+        """Keep the latest capture per terminal, commodity and side."""
+        with self.lock, self.db:
+            self.db.executemany(
+                f"INSERT OR REPLACE INTO capture ({', '.join(self.CAPTURE_FIELDS)}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [tuple(r.get(f) for f in self.CAPTURE_FIELDS) for r in rows],
+            )
+
+    def captures(self, newer_than: float = 0) -> list[dict]:
+        with self.lock:
+            rows = self.db.execute(
+                f"SELECT {', '.join(self.CAPTURE_FIELDS)} FROM capture WHERE captured_at >= ?", (newer_than,)
+            ).fetchall()
+        return [dict(zip(self.CAPTURE_FIELDS, r)) for r in rows]
 
     def get_state(self, key: str, default=None):
         with self.lock:

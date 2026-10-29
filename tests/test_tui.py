@@ -342,3 +342,38 @@ async def test_a_default_size_console_window_still_shows_the_routes(app_parts):
     async with app.run_test(size=SIZE) as pilot:
         await settle(app, pilot)
         assert app.query_one("#wordmark").display and app.query_one("#detail").display
+
+
+async def test_a_terminal_capture_updates_routes_status_and_wallet(app_parts):
+    from sto.ocr.terminal import BuyRow, TerminalScreen
+
+    app = make_app(app_parts)
+    async with app.run_test(size=SIZE) as pilot:
+        await settle(app, pilot)
+        screen = TerminalScreen(
+            buy=[BuyRow("Waste", 200, 90000), BuyRow("Pressurized Ice", 4536, 514, 4), BuyRow("Quartz", 3563, 287),
+                 BuyRow("Scrap", 3109, 2100), BuyRow("Copper", 3198, 326), BuyRow("Agricultural Supplies", 1122, 6000),
+                 BuyRow("DynaFlex", 1716, 823)],
+            balance=2_366_183)
+        app.terminal_seen(screen)
+        await settle(app, pilot)
+        saved = app.store.captures()
+        assert len(saved) == 7 and all(c["side"] == "buy" for c in saved)
+        assert "Port Tressler" in app.terminal_status
+        assert app.wallet == 2_366_183 and app.wallet_source == "ocr"
+        ice = next(p for p in app.ds.prices if p.source == "you" and p.price_buy == 4536)
+        assert ice.scu_buy == 514 and ice.updated == pytest.approx(app.clock())
+        tressler = [r for r in app.routes if r.buy_terminal.label == "Port Tressler"]
+        assert all("you" in r.flags for r in tressler)
+
+
+async def test_an_unidentified_terminal_saves_nothing(app_parts):
+    from sto.ocr.terminal import BuyRow, TerminalScreen
+
+    app = make_app(app_parts)
+    async with app.run_test(size=SIZE) as pilot:
+        await settle(app, pilot)
+        app.terminal_seen(TerminalScreen(buy=[BuyRow("Waste", 200, 100)]))
+        await settle(app, pilot)
+        assert app.store.captures() == []
+        assert "couldn't tell" in app.terminal_status

@@ -62,6 +62,19 @@ class WindowsOcr:
         return [(w.text, w.bounding_rect.x, w.bounding_rect.y, w.bounding_rect.width, w.bounding_rect.height)
                 for line in result.lines for w in line.words]
 
+    def lines(self, image: Image.Image) -> list[tuple[str, float, float, float, float]]:
+        """(text, x, y, width, height) for every line, the box spanning its words."""
+        result = asyncio.run(self._recognize(image))
+        out = []
+        for line in result.lines:
+            rects = [w.bounding_rect for w in line.words]
+            if not rects:
+                continue
+            x0, y0 = min(r.x for r in rects), min(r.y for r in rects)
+            x1, y1 = max(r.x + r.width for r in rects), max(r.y + r.height for r in rects)
+            out.append((line.text, x0, y0, x1 - x0, y1 - y0))
+        return out
+
 
 class TesseractOcr:
     name = "tesseract"

@@ -244,6 +244,8 @@ def _route(bt: Terminal, st: Terminal, cargo: tuple[Cargo, ...], leg: Leg, eta: 
     conf = min(confidence(buy_age, s.confidence_full_h, s.confidence_half_life_h),
                confidence(sell_age, s.confidence_full_h, s.confidence_half_life_h))
     flags = []
+    if any("you" in (c.buy.source, c.sell.source) for c in cargo):
+        flags.append("you")
     if any(c.demand is None for c in cargo):
         conf *= s.unknown_demand_factor
         flags.append("demand ?")

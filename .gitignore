@@ -10,3 +10,4 @@ fixtures/raw/
 dist/
 config.toml
 .release-guard
+research/

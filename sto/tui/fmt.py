@@ -60,12 +60,13 @@ def countdown(seconds: float) -> str:
     return f"{seconds // 60:02d}:{seconds % 60:02d}"
 
 
-FLAG_CODES = {"pad ?": "P?", "box ?": "B?", "demand ?": "D?", "dist ~": "~", "stale": "S"}
+FLAG_CODES = {"you": "★", "pad ?": "P?", "box ?": "B?", "demand ?": "D?", "dist ~": "~", "stale": "S"}
 
 
 def flag_text(flags: tuple[str, ...]) -> Text:
     t = Text()
     for f in flags:
         code = FLAG_CODES.get(f, f)
-        t.append(code + " ", style=BAD if f == "stale" else WARN if f in ("pad ?", "box ?") else "#8a8a8a")
+        style = GOOD if f == "you" else BAD if f == "stale" else WARN if f in ("pad ?", "box ?") else "#8a8a8a"
+        t.append(code + " ", style=style)
     return t
